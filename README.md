@@ -1,0 +1,44 @@
+# 易理占筮 · 太极八卦六十四阵
+
+纯前端《周易》象数学习站：一事一占、天时地利人和、多算法起卦、体用生克、朱熹动爻玩辞法。  
+黑白动态背景：太极 · 先天八卦 · 六十四卦阵。
+
+> 在线演示（个人站）：https://zhangsjqaq.vexr.dev/yili  
+> 作品集：https://zhangsjqaq.vexr.dev
+
+## 快速开始
+
+```bash
+# 直接用浏览器打开 index.html
+# 或本地静态服务
+python -m http.server 8080
+```
+
+访问 http://localhost:8080
+
+## 功能
+
+1. **净心立问** — 诚意确认 + 一事一问 + 事件类型  
+2. **三才备物** — 天时 / 地利（先天方位） / 人和  
+3. **择筮成卦** — 六爻三钱 · 时间/人物/方位/报数梅花  
+4. **观象玩辞** — 本卦（贞）· 之卦（悔）· 动爻法则 · 体用五行  
+
+## 目录
+
+```
+index.html
+css/style.css
+js/hexagrams.js      # 六十四卦
+js/divination.js     # 多算法与体用
+js/bagua-field.js    # 太极八卦卦阵 Canvas
+js/viz.js            # 可视化
+js/app.js            # 交互
+```
+
+## 说明
+
+仅供《周易》象数文化与算法学习，不构成决策、医疗或法律建议。
+
+## License
+
+MIT

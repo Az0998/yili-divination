@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>易理占筮 · 太极八卦六十四阵</title>
+  <meta name="description" content="依周易象数与梅花易数：一事一占，天时地利人和，体用生克，朱熹动爻玩辞法。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="bagua-field" class="bagua-field" aria-hidden="true"></div>
+  <div class="veil" aria-hidden="true"></div>
+
+  <div class="app">
+    <header class="hero">
+      <p class="eyebrow">观象玩辞 · 三才合一</p>
+      <h1>易理占筮</h1>
+      <p class="subtitle">太极生两仪，两仪生四象，四象生八卦，八卦定吉凶</p>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-panel="cast" role="tab">起卦问事</button>
+        <button class="tab" data-panel="classic" role="tab">古典起卦</button>
+        <button class="tab" data-panel="study" role="tab">易理说明</button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <section id="cast-panel" class="panel active">
+        <!-- 流程指示 -->
+        <ol class="ritual-steps" id="ritual-steps">
+          <li class="active" data-step="1"><span>壹</span>净心立问</li>
+          <li data-step="2"><span>贰</span>三才备物</li>
+          <li data-step="3"><span>叁</span>择筮成卦</li>
+          <li data-step="4"><span>肆</span>观象玩辞</li>
+        </ol>
+
+        <div class="step-card" data-flow="1">
+          <div class="step-head">
+            <span class="step-no">壹</span>
+            <div>
+              <h2>净心立问</h2>
+              <p>诚则灵。一事一占，勿戏勿渎。《蒙》曰：初筮告，再三渎，渎则不告。</p>
+            </div>
+          </div>
+          <label class="sincerity">
+            <input type="checkbox" id="sincerity-check">
+            <span>我已静心，所问唯一事，愿依象数自警，不以占废人谋。</span>
+          </label>
+          <div class="event-grid" id="event-grid"></div>
+          <label class="q-label">所问（宜明确可答）
+            <input type="text" id="ctx-question" placeholder="例：此次求职能否如愿？ / 本月东行是否有利？">
+          </label>
+        </div>
+
+        <div class="step-card" data-flow="2">
+          <div class="step-head">
+            <span class="step-no">贰</span>
+            <div>
+              <h2>天时 · 地利 · 人和</h2>
+              <p>易道广大，三才备矣。时定气、方定势、人定机。</p>
+            </div>
+          </div>
+          <form id="context-form" class="context-form">
+            <fieldset>
+              <legend>天时</legend>
+              <div class="form-grid">
+                <label>年<input type="number" name="year" id="ctx-year" required></label>
+                <label>月<input type="number" name="month" id="ctx-month" min="1" max="12" required></label>
+                <label>日<input type="number" name="day" id="ctx-day" min="1" max="31" required></label>
+                <label>时（0–23）<input type="number" name="hour" id="ctx-hour" min="0" max="23" required></label>
+              </div>
+              <button type="button" class="btn ghost sm" id="btn-fill-now">取当下时刻</button>
+              <p class="hint" id="shichen-hint"></p>
+            </fieldset>
+            <fieldset>
+              <legend>地利</legend>
+              <div class="form-grid">
+                <label>所在/目的地
+                  <input type="text" name="place" id="ctx-place" placeholder="杭州、家中、考场…">
+                </label>
+                <label>方位（先天）
+                  <select name="direction" id="ctx-direction">
+                    <option value="">不详</option>
+                    <option>北</option><option>东北</option><option>东</option><option>东南</option>
+                    <option>南</option><option>西南</option><option>西</option><option>西北</option>
+                  </select>
+                </label>
+              </div>
+              <p class="hint">北坎、东震、南离、西兑；东北艮、东南巽、西南坤、西北乾。</p>
+            </fieldset>
+            <fieldset>
+              <legend>人和</legend>
+              <div class="form-grid">
+                <label>求问者<input type="text" name="personName" id="ctx-person" placeholder="姓名或称呼"></label>
+                <label>年龄<input type="number" name="personAge" id="ctx-age" min="1" max="120"></label>
+                <label>角色
+                  <select name="personRole" id="ctx-role">
+                    <option value="self">问自己</option>
+                    <option value="other">问对方/他人</option>
+                  </select>
+                </label>
+                <label>对方姓名<input type="text" name="otherName" id="ctx-other" placeholder="感情/争讼可填"></label>
+              </div>
+            </fieldset>
+            <fieldset id="number-fields" class="hidden">
+              <legend>报数（触机）</legend>
+              <div class="form-grid">
+                <label>上数<input type="number" name="num1" id="ctx-num1" min="1"></label>
+                <label>下数<input type="number" name="num2" id="ctx-num2" min="1"></label>
+              </div>
+              <p class="hint">心念所问，随口报两数，合时辰成卦。</p>
+            </fieldset>
+          </form>
+        </div>
+
+        <div class="step-card" data-flow="3">
+          <div class="step-head">
+            <span class="step-no">叁</span>
+            <div>
+              <h2>择筮成卦</h2>
+              <p id="method-hint">事不同则法不同，系统依易理推荐，亦可手选。</p>
+            </div>
+          </div>
+          <div class="method-list" id="method-list"></div>
+          <div class="cast-actions">
+            <button type="button" class="btn primary glow" id="btn-cast">开筮成卦</button>
+            <button type="button" class="btn ghost" id="btn-reset-cast">重置</button>
+          </div>
+          <div class="coin-stage" id="coin-stage" hidden></div>
+        </div>
+
+        <div id="cast-result" class="result-region" data-flow="4"></div>
+      </section>
+
+      <section id="classic-panel" class="panel">
+        <div class="step-card">
+          <h2>六爻 · 三钱卦</h2>
+          <p>字阴二、背阳三。六老阴变，七少阳，八少阴，九老阳变。自初至上。</p>
+          <div class="toolbar">
+            <button id="btn-throw-all" class="btn primary">自动连掷六次</button>
+            <button id="btn-throw-one" class="btn secondary">逐次手动掷出</button>
+            <button id="btn-reset-liuyao" class="btn ghost">重置</button>
+          </div>
+          <p class="progress" id="liuyao-status">尚未起卦</p>
+          <div class="table-wrap">
+            <table class="cast-table">
+              <thead>
+                <tr><th>爻位</th><th>一</th><th>二</th><th>三</th><th>合</th><th>象</th><th>性</th></tr>
+              </thead>
+              <tbody id="liuyao-tbody"></tbody>
+            </table>
+          </div>
+          <div id="liuyao-result" class="result-region"></div>
+        </div>
+        <div class="step-card">
+          <h2>梅花 · 时间起卦</h2>
+          <form id="meihua-form" class="form-grid">
+            <label>年<input type="number" id="mh-year" required></label>
+            <label>月<input type="number" id="mh-month" min="1" max="12" required></label>
+            <label>日<input type="number" id="mh-day" min="1" max="31" required></label>
+            <label>时<input type="number" id="mh-hour" min="0" max="23" required></label>
+            <label class="span-2">问题<input type="text" id="mh-question"></label>
+            <div class="form-actions span-2">
+              <button type="submit" class="btn primary">起卦</button>
+              <button type="button" id="btn-now" class="btn secondary">当前时间</button>
+            </div>
+          </form>
+          <div id="meihua-result" class="result-region"></div>
+        </div>
+      </section>
+
+      <section id="study-panel" class="panel">
+        <div class="step-card article">
+          <h2>易理纲要</h2>
+          <p>本站象数模拟，旨在助人玩辞自警，非宿命裁定。人谋在先，神谋在后。</p>
+          <h3>一事一占</h3>
+          <p>问事宜专一明确。同一事不可连占；心不诚则象不应。</p>
+          <h3>动爻玩辞（朱熹《易学启蒙》通行法）</h3>
+          <ul>
+            <li>安静：本卦卦辞</li>
+            <li>一爻动：本卦动爻爻辞</li>
+            <li>二爻动：两爻辞，以上爻为主</li>
+            <li>三爻动：本卦为贞、之卦为悔，以本为主</li>
+            <li>四爻动：之卦两静爻，以下为主</li>
+            <li>五爻动：之卦静爻</li>
+            <li>六爻动：乾用九、坤用六，余看之卦辞</li>
+          </ul>
+          <h3>梅花体用</h3>
+          <p>动爻所在单卦为用，另一为体。生体、体克用多吉；克体、体生用多阻或耗。</p>
+          <h3>事类取法</h3>
+          <p>六爻宜人事细断；时间梅花感天时；人物梅花合姓名年龄；方位梅花配先天八方；报数触机。</p>
+          <h3>郑重声明</h3>
+          <p>仅供《周易》文化与象数学习，不构成决策、医疗或法律建议。</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>易理占筮 · 太极八卦六十四阵 · 象数学习</p>
+    </footer>
+  </div>
+
+  <script src="js/hexagrams.js"></script>
+  <script src="js/divination.js"></script>
+  <script src="js/bagua-field.js"></script>
+  <script src="js/viz.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
