@@ -801,3 +801,69 @@ input:focus, select:focus {
   font-size: 0.85rem;
   margin-bottom: 2px;
 }
+
+/* Complex ranking */
+textarea {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.rank-list { display: grid; gap: 12px; }
+
+.rank-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.rank-card.top {
+  border-color: #fff;
+  box-shadow: var(--glow);
+}
+
+.rank-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rank-title {
+  font-size: 1.15rem;
+  color: #fff;
+  font-weight: 600;
+}
+
+.rank-score {
+  font-size: 0.9rem;
+  color: #ddd;
+}
+
+.rank-meta {
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  margin-top: 6px;
+}
+
+.bazi-pillars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bazi-pillars span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}

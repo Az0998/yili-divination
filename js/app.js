@@ -438,6 +438,208 @@
     });
   }
 
+  /* ---------- 复杂问事 ---------- */
+  let selectedScenario = "relocate";
+
+  function syncComplexFields() {
+    const sc = window.YiComplex.SCENARIOS[selectedScenario];
+    const isCustom = sc.optionSource === "custom";
+    $("#cx-custom-wrap").classList.toggle("hidden", !isCustom);
+    // 迁居显示区域；自定义名单隐藏缩圈区；其余保留标签/上限
+    if (isCustom) {
+      $("#cx-region-wrap").classList.add("hidden");
+    } else {
+      $("#cx-region-wrap").classList.remove("hidden");
+    }
+  }
+
+  function fillComplexNow() {
+    const now = new Date();
+    $("#cx-y").value = now.getFullYear();
+    $("#cx-m").value = now.getMonth() + 1;
+    $("#cx-d").value = now.getDate();
+    $("#cx-h").value = now.getHours();
+    if (!$("#cx-by").value) {
+      $("#cx-by").value = 1998;
+      $("#cx-bm").value = 6;
+      $("#cx-bd").value = 15;
+      $("#cx-bh").value = 10;
+    }
+  }
+
+  function renderScenarioGrid() {
+    const Cx = window.YiComplex;
+    const grid = $("#complex-scenario-grid");
+    grid.innerHTML = Object.values(Cx.SCENARIOS)
+      .map(
+        (sc) => `
+      <button type="button" class="event-card ${sc.id === selectedScenario ? "selected" : ""}" data-id="${sc.id}">
+        <span class="event-icon">${sc.icon}</span>
+        <span class="event-name">${sc.name}</span>
+        <span class="event-desc">${sc.desc}</span>
+      </button>`
+      )
+      .join("");
+  }
+
+  function initComplex() {
+    const Cx = window.YiComplex;
+    if (!Cx) return;
+
+    renderScenarioGrid();
+    fillComplexNow();
+    syncComplexFields();
+
+    $("#complex-scenario-grid").addEventListener("click", (e) => {
+      const card = e.target.closest(".event-card");
+      if (!card) return;
+      selectedScenario = card.dataset.id;
+      $$("#complex-scenario-grid .event-card").forEach((c) =>
+        c.classList.toggle("selected", c === card)
+      );
+      syncComplexFields();
+    });
+
+    $("#cx-fill-now").addEventListener("click", fillComplexNow);
+    $("#cx-reset").addEventListener("click", () => {
+      $("#complex-form").reset();
+      $("#complex-bazi").innerHTML = "";
+      $("#complex-result").innerHTML = "";
+      selectedScenario = "relocate";
+      renderScenarioGrid();
+      fillComplexNow();
+      syncComplexFields();
+    });
+
+    $("#complex-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!$("#cx-sincerity").checked) {
+        alert("请先确认：每一候选单独起卦。");
+        return;
+      }
+      const name = $("#cx-name").value.trim();
+      if (!name) {
+        alert("请填写姓名（入梅花成数）。");
+        return;
+      }
+      const sc = Cx.SCENARIOS[selectedScenario];
+      if (sc.optionSource === "custom" && !$("#cx-custom").value.trim()) {
+        alert("请填写自定义候选名单（至少 2 个）。");
+        return;
+      }
+
+      const form = {
+        personName: name,
+        personAge: $("#cx-age").value,
+        goal: $("#cx-goal").value.trim(),
+        birth: {
+          year: $("#cx-by").value,
+          month: $("#cx-bm").value,
+          day: $("#cx-bd").value,
+          hour: $("#cx-bh").value
+        },
+        year: $("#cx-y").value,
+        month: $("#cx-m").value,
+        day: $("#cx-d").value,
+        hour: $("#cx-h").value,
+        region: $("#cx-region").value,
+        focusTag: $("#cx-tag").value.trim(),
+        maxCandidates: parseInt($("#cx-max").value, 10) || 5,
+        customText: $("#cx-custom").value
+      };
+
+      Viz.playRitual(() => {
+        try {
+          const out = Cx.compareComplex(selectedScenario, form);
+          renderComplexBazi(out.chart);
+          renderComplexResult(out);
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      });
+    });
+  }
+
+  function renderComplexBazi(chart) {
+    const mount = $("#complex-bazi");
+    if (!chart) {
+      mount.innerHTML = "";
+      return;
+    }
+    mount.innerHTML = `
+      <div class="result-card">
+        <h3>八字简盘（缩圈辅助）</h3>
+        <p>${chart.summary}</p>
+        <div class="bazi-pillars">
+          <span>年 ${chart.pillars.year}</span>
+          <span>月 ${chart.pillars.month}</span>
+          <span>日 ${chart.pillars.day}</span>
+          <span>时 ${chart.pillars.hour}</span>
+        </div>
+        <p class="verdict-sub" style="margin-top:10px">喜用五行：${chart.gods.xi.join("、")} · 宜方：${chart.xiDirs.join("、") || "不拘"}</p>
+        <p class="hint">此盘节气取近似，只用于筛候选；各案吉凶以卦象体用与玩辞为准。</p>
+      </div>`;
+  }
+
+  function renderComplexResult(out) {
+    const mount = $("#complex-result");
+    const top = out.top;
+    const cards = out.ranked
+      .map((row) => {
+        const r = row.result;
+        const ty = r.tiYong;
+        const cl = r.classical;
+        return `
+        <div class="rank-card ${row.rank === 1 ? "top" : ""}">
+          <div class="rank-head">
+            <div class="rank-title">第 ${row.rank} · ${row.option.name}
+              <span class="tag">${row.verdict}</span>
+            </div>
+            <div class="rank-score">综合 ${row.finalScore}（卦 ${row.guaScore}）</div>
+          </div>
+          <div class="rank-meta">
+            ${(row.option.region ? row.option.region + " · " : "")}${row.option.dir || ""}${row.option.wx ? " · " + row.option.wx : ""}
+            ${(row.option.tags || []).length ? " · " + row.option.tags.join("/") : ""}
+          </div>
+          <p class="verdict-sub">所问：${row.question}</p>
+          <div class="text-block">
+            <h4>本卦 → 之卦</h4>
+            <p>${r.bengua ? r.bengua.name + "（" + r.bengua.fullName + "）" : "?"}
+              → ${r.biangua ? r.biangua.name + "（" + r.biangua.fullName + "）" : "?"}</p>
+          </div>
+          <div class="text-block">
+            <h4>体用</h4>
+            <p>体 ${ty.tiName}（${ty.ti}）· 用 ${ty.yongName}（${ty.yong}）→ ${ty.relation}。${ty.luck.text}</p>
+          </div>
+          <div class="text-block">
+            <h4>玩辞</h4>
+            <p>${cl ? cl.rule : ""}</p>
+            <p>${cl && cl.primaryText ? "主断辞：" + cl.primaryText : ""}</p>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    mount.innerHTML = `
+      <div class="result-card">
+        <h3>${out.scenario.name} · 逐案比较结果</h3>
+        <p>${out.principle}</p>
+        <p class="verdict-sub">起卦天时：${out.castTime}</p>
+        ${
+          top
+            ? `<p class="verdict-title" style="font-size:1.6rem;margin-top:10px">首选倾向：${top.option.name}</p>`
+            : ""
+        }
+        <p class="hint">${out.caution}</p>
+        <div class="chips" style="margin-top:10px">
+          ${(out.scenario.tips || []).map((t) => `<span class="chip">${t}</span>`).join("")}
+        </div>
+      </div>
+      <div class="rank-list">${cards}</div>
+    `;
+    mount.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     initAtmosphere();
     initTabs();
@@ -445,6 +647,7 @@
     initEvents();
     renderMethods();
     initClassic();
+    initComplex();
     setRitualStep(1);
 
     $("#btn-fill-now").addEventListener("click", () => fillNow("ctx"));

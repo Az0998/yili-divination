@@ -21,6 +21,7 @@
       <p class="subtitle">太极生两仪，两仪生四象，四象生八卦，八卦定吉凶</p>
       <nav class="tabs" role="tablist">
         <button class="tab active" data-panel="cast" role="tab">起卦问事</button>
+        <button class="tab" data-panel="complex" role="tab">复杂问事</button>
         <button class="tab" data-panel="classic" role="tab">古典起卦</button>
         <button class="tab" data-panel="study" role="tab">易理说明</button>
       </nav>
@@ -134,6 +135,92 @@
         <div id="cast-result" class="result-region" data-flow="4"></div>
       </section>
 
+      <section id="complex-panel" class="panel">
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-no">复</span>
+            <div>
+              <h2>复杂问事 · 漏斗筮法</h2>
+              <p>不为一卦点尽天下。先立界与八字喜用缩圈，再对每一候选<strong>单独起卦</strong>，以体用玩辞排序。</p>
+            </div>
+          </div>
+          <div class="event-grid" id="complex-scenario-grid"></div>
+        </div>
+
+        <div class="step-card">
+          <h2>生辰 · 姓名 · 边界</h2>
+          <p class="hint">生辰用于八字简盘缩圈（节气近似）；正断仍看各候选之卦象。姓名入梅花成数。</p>
+          <form id="complex-form" class="context-form">
+            <fieldset>
+              <legend>人和（求问者）</legend>
+              <div class="form-grid">
+                <label>姓名<input type="text" id="cx-name" placeholder="必填，入梅花" required></label>
+                <label>年龄<input type="number" id="cx-age" min="1" max="120" placeholder="可选"></label>
+                <label>目标侧重<input type="text" id="cx-goal" placeholder="如：事业 / 宜居 / 留学"></label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>生辰（公历，缩圈用）</legend>
+              <div class="form-grid">
+                <label>年<input type="number" id="cx-by" required></label>
+                <label>月<input type="number" id="cx-bm" min="1" max="12" required></label>
+                <label>日<input type="number" id="cx-bd" min="1" max="31" required></label>
+                <label>时<input type="number" id="cx-bh" min="0" max="23" required></label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>起卦天时（取问事当下）</legend>
+              <div class="form-grid">
+                <label>年<input type="number" id="cx-y" required></label>
+                <label>月<input type="number" id="cx-m" min="1" max="12" required></label>
+                <label>日<input type="number" id="cx-d" min="1" max="31" required></label>
+                <label>时<input type="number" id="cx-h" min="0" max="23" required></label>
+              </div>
+              <button type="button" class="btn ghost sm" id="cx-fill-now">取当下</button>
+            </fieldset>
+            <fieldset id="cx-region-wrap">
+              <legend>迁居范围 / 缩圈</legend>
+              <div class="form-grid">
+                <label>区域
+                  <select id="cx-region">
+                    <option value="all">国内外综合</option>
+                    <option value="国内">仅国内</option>
+                    <option value="海外">仅海外</option>
+                  </select>
+                </label>
+                <label>关注标签
+                  <input type="text" id="cx-tag" placeholder="如：科技、金融、宜居">
+                </label>
+                <label>候选上限
+                  <select id="cx-max">
+                    <option value="3">3</option>
+                    <option value="5" selected>5</option>
+                    <option value="6">6</option>
+                  </select>
+                </label>
+              </div>
+            </fieldset>
+            <fieldset id="cx-custom-wrap" class="hidden">
+              <legend>自定义候选（逗号或换行，最多 6 个）</legend>
+              <label class="q-label">名单
+                <textarea id="cx-custom" rows="3" placeholder="例：甲方案, 乙方案, 丙方案"></textarea>
+              </label>
+            </fieldset>
+            <label class="sincerity">
+              <input type="checkbox" id="cx-sincerity">
+              <span>已知：每一候选单独起卦；不以一卦代替多案比较；结果仅供象数学习。</span>
+            </label>
+            <div class="cast-actions">
+              <button type="submit" class="btn primary glow">缩圈并逐案起卦</button>
+              <button type="button" class="btn ghost" id="cx-reset">重置</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="complex-bazi" class="result-region"></div>
+        <div id="complex-result" class="result-region"></div>
+      </section>
+
       <section id="classic-panel" class="panel">
         <div class="step-card">
           <h2>六爻 · 三钱卦</h2>
@@ -191,8 +278,16 @@
           <p>动爻所在单卦为用，另一为体。生体、体克用多吉；克体、体生用多阻或耗。</p>
           <h3>事类取法</h3>
           <p>六爻宜人事细断；时间梅花感天时；人物梅花合姓名年龄；方位梅花配先天八方；报数触机。</p>
+          <h3>复杂问事（漏斗筮法）</h3>
+          <p>迁居、赛道、升学、合作、姻缘比较、投资取向、多方案等，皆不可一卦尽断。</p>
+          <ul>
+            <li>立界：明确目标与约束</li>
+            <li>缩圈：八字简盘喜用 + 先天方位/五行，筛 3–6 候选</li>
+            <li>正断：对每一候选<strong>单独</strong>起卦（一事一占）</li>
+            <li>排序：以体用生克与朱熹动爻玩辞为主，命理缩圈为辅</li>
+          </ul>
           <h3>郑重声明</h3>
-          <p>仅供《周易》文化与象数学习，不构成决策、医疗或法律建议。</p>
+          <p>仅供《周易》文化与象数学习，不构成决策、医疗、移民或投资建议。</p>
         </div>
       </section>
     </main>
@@ -204,6 +299,8 @@
 
   <script src="js/hexagrams.js"></script>
   <script src="js/divination.js"></script>
+  <script src="js/bazi.js"></script>
+  <script src="js/complex.js"></script>
   <script src="js/bagua-field.js"></script>
   <script src="js/viz.js"></script>
   <script src="js/app.js"></script>
