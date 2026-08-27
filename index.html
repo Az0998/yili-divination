@@ -164,14 +164,18 @@
               <p>Rider–Waite–Smith 体系。洗牌切牌、正逆位并读。简单问用单张或三张；大事用马蹄或凯尔特十字。事不过三。</p>
             </div>
           </div>
-          <label class="sincerity">
+          <label class="sincerity" id="tarot-sincerity-box">
             <input type="checkbox" id="tarot-sincerity">
             <span>我已静心，所问唯一事；知牌象为象征而非宿命，不以占废人谋。</span>
           </label>
           <div class="event-grid" id="tarot-event-grid"></div>
-          <label class="q-label">所问（宜明确可答）
-            <input type="text" id="tarot-question" placeholder="例：这段关系当下该如何自处？ / 此次求职核心阻力是什么？">
+          <label class="q-label">所问（宜一事、一时、一地）
+            <input type="text" id="tarot-question" placeholder="例：迁往杭州发展事业是否有利？ / 此次求职核心阻力是什么？">
           </label>
+          <div class="cast-actions" style="margin-top:12px">
+            <button type="button" class="btn secondary" id="btn-tarot-confirm-q">确认立问</button>
+          </div>
+          <div id="tarot-coach" class="coach-host" aria-live="polite"></div>
         </div>
 
         <div class="step-card">
@@ -198,6 +202,7 @@
             <span>同题附梅花一卦，作中西对照（非强行对号）。</span>
           </label>
           <div class="cast-actions">
+            <p id="tarot-notice" class="oracle-notice" hidden></p>
             <button type="button" class="btn primary glow" id="btn-tarot-draw">洗牌翻牌</button>
             <button type="button" class="btn ghost" id="btn-tarot-reset">重置</button>
           </div>

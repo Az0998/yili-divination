@@ -788,6 +788,227 @@
     mount.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /* ---------- 立问引导 ---------- */
+  function inferEventFromQuestion(text) {
+    if (/城|迁|搬|出行|去.*发展|定居|落户|安家/.test(text)) return "travel";
+    if (/恋|婚|复合|对象|感情|关系/.test(text)) return "love";
+    if (/财|钱|投资|买卖|生意/.test(text)) return "wealth";
+    if (/病|身体|健康|愈/.test(text)) return "health";
+    if (/讼|官司|纠纷|官非/.test(text)) return "lawsuit";
+    if (/考|升学|论文|录取/.test(text)) return "exam";
+    if (/职|工作|升迁|offer|创业|功名/.test(text)) return "career";
+    return "decision";
+  }
+
+  function analyzeQuestion(q) {
+    const text = String(q || "").trim();
+    if (!text) {
+      return { status: "empty" };
+    }
+    const openCity =
+      /哪[一二两三]?[个座]?城市|哪座城|哪个地方|去哪[儿里]?发展|去哪个?城市|去那个城市|何处(安家|发展|落脚)|迁去哪|该去哪/;
+    const openCareer = /哪[个条]?(行业|工作|职业|赛道)|做什么(工作|好)|选什么专业/;
+    const twoChoice = /还是|或者|vs\.?|VS|二选一/;
+    const pair = text.split(/还是|或者|vs\.?|VS/).map((s) => s.replace(/[？?！!。，,\s]/g, "").trim());
+    const namedPair = pair.length === 2 && pair[0].length >= 2 && pair[1].length >= 2;
+
+    if (openCity.test(text) && !namedPair) {
+      return {
+        status: "too_wide",
+        topic: "city",
+        eventId: "travel",
+        title: "一铺点不尽天下城",
+        body: "「去哪个城市发展」是无数件事。塔罗一次只铺一事，不能替天下城排名。"
+      };
+    }
+    if (openCareer.test(text) && !namedPair) {
+      return {
+        status: "too_wide",
+        topic: "career",
+        eventId: "career",
+        title: "赛道不可一牌尽断",
+        body: "「做什么工作/哪个行业」过宽。请先写下两条路径，或改问一条路径是否有利于此时。"
+      };
+    }
+    if (/^(我)?该?怎么办[？?]?$/.test(text) || text.length < 4) {
+      return {
+        status: "too_wide",
+        topic: "decision",
+        eventId: "decision",
+        title: "问句未立",
+        body: "请写清一事、一时、一地。如「此次求职能否如愿」「迁往杭州发展事业是否有利」。"
+      };
+    }
+
+    const eventId = inferEventFromQuestion(text);
+    const suggestKind = namedPair || twoChoice.test(text) ? "complex" : "simple";
+    const suggestSpread = namedPair ? "choice" : eventId === "love" ? "three" : "situation";
+    return {
+      status: "ok",
+      eventId,
+      suggestKind,
+      suggestSpread,
+      namedPair: namedPair ? pair : null
+    };
+  }
+
+  function setTarotNotice(msg) {
+    const el = $("#tarot-notice");
+    if (!el) return;
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function selectTarotEvent(id) {
+    if (!id || !Yi.EVENT_TYPES[id]) return;
+    selectedTarotEvent = id;
+    $$("#tarot-event-grid .event-card").forEach((c) =>
+      c.classList.toggle("selected", c.dataset.id === id)
+    );
+  }
+
+  function setSpreadKind(kind) {
+    selectedSpreadKind = kind;
+    $$(".spread-kind .chip-btn").forEach((b) =>
+      b.classList.toggle("selected", b.dataset.kind === kind)
+    );
+  }
+
+  function renderIdleCoach() {
+    return `
+      <div class="coach-card idle">
+        <p class="coach-kicker">立问须专</p>
+        <h3>先把问题收成一件事</h3>
+        <p class="verdict-sub">塔罗一次只铺一事。宜问「此时、此地、此路径」；勿问「天下哪个城市最好」。</p>
+        <div class="example-chips">
+          <button type="button" data-coach="example" data-q="迁往杭州发展事业是否有利？">迁往一座城</button>
+          <button type="button" data-coach="example" data-q="此时事业，去杭州还是深圳更有利？">两座城二选一</button>
+          <button type="button" data-coach="complex">尚未缩圈 · 迁居择城</button>
+        </div>
+      </div>`;
+  }
+
+  function renderWideCityCoach() {
+    return `
+      <div class="coach-card warn" id="tarot-coach-card">
+        <p class="coach-kicker">立问未成</p>
+        <h3>一铺点不尽天下城</h3>
+        <p>「我该去哪个城市发展」过宽，牌象无法替未写出的城市作答。请先收窄：</p>
+        <ol>
+          <li>已有两座城：写下城名，用「二选一」。</li>
+          <li>只想看一座：改成「迁往××发展事业是否有利」。</li>
+          <li>名单未定：转中式「复杂问事 · 迁居择城」，先缩圈再逐城起卦。</li>
+        </ol>
+        <div class="form-grid">
+          <label>城甲<input type="text" id="tarot-city-a" placeholder="如：杭州"></label>
+          <label>城乙<input type="text" id="tarot-city-b" placeholder="如：深圳"></label>
+        </div>
+        <div class="cast-actions">
+          <button type="button" class="btn primary" data-coach="choice">用这两座城铺二选一</button>
+          <button type="button" class="btn ghost" data-coach="complex">去迁居择城</button>
+        </div>
+        <div class="example-chips">
+          <button type="button" data-coach="example" data-q="迁往杭州发展事业是否有利？">改问一座城</button>
+        </div>
+      </div>`;
+  }
+
+  function applyTarotCoach(opts) {
+    const host = $("#tarot-coach");
+    if (!host) return analyzeQuestion("");
+    const q = ($("#tarot-question") && $("#tarot-question").value) || "";
+    const info = analyzeQuestion(q);
+    if (info.status === "empty") {
+      host.innerHTML = renderIdleCoach();
+    } else if (info.status === "too_wide") {
+      if (info.topic === "city") host.innerHTML = renderWideCityCoach();
+      else {
+        host.innerHTML = `
+          <div class="coach-card warn" id="tarot-coach-card">
+            <p class="coach-kicker">立问未成</p>
+            <h3>${info.title}</h3>
+            <p>${info.body}</p>
+            <div class="example-chips">
+              <button type="button" data-coach="example" data-q="此次求职，接受甲offer还是留任更有利？">改成二选一</button>
+              <button type="button" data-coach="example" data-q="此次求职能否如愿？">改成一事一问</button>
+              ${info.topic === "career" ? `<button type="button" data-coach="complex-career">去复杂问事·职业赛道</button>` : ""}
+            </div>
+          </div>`;
+      }
+      if (info.eventId) selectTarotEvent(info.eventId);
+    } else {
+      const ev = Yi.EVENT_TYPES[info.eventId];
+      host.innerHTML = `
+        <div class="coach-card ok" id="tarot-coach-card">
+          <p class="coach-kicker">问句已立</p>
+          <h3>可以铺牌</h3>
+          <p>事类倾向「${ev ? ev.name : "抉择"}」。${
+            info.namedPair
+              ? "已识别两案，建议用「二选一」。"
+              : "简单问用三张或情境阵；大事再用十字。"
+          }</p>
+          <p class="hint">勾选上方诚意后，至下方择阵，点「洗牌翻牌」。</p>
+        </div>`;
+      if (info.eventId) selectTarotEvent(info.eventId);
+      if (info.namedPair) {
+        setSpreadKind("complex");
+        selectedSpread = "choice";
+        $("#tarot-opt-a").value = info.namedPair[0];
+        $("#tarot-opt-b").value = info.namedPair[1];
+        renderTarotSpreads();
+      } else if (opts && opts.applySpread && info.suggestSpread) {
+        setSpreadKind(info.suggestKind);
+        selectedSpread = info.suggestSpread;
+        renderTarotSpreads();
+      }
+    }
+    if (opts && opts.pulse) {
+      const card = $("#tarot-coach-card") || host.querySelector(".coach-card");
+      if (card) {
+        card.classList.remove("pulse");
+        void card.offsetWidth;
+        card.classList.add("pulse");
+      }
+    }
+    return info;
+  }
+
+  function openComplexScenario(id) {
+    selectedScenario = id;
+    const tab = document.querySelector('.tab[data-panel="complex"]');
+    if (tab) tab.click();
+    renderScenarioGrid();
+    syncComplexFields();
+    const grid = $("#complex-scenario-grid");
+    if (grid) grid.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function applyTarotChoiceFromCoach() {
+    const a = (($("#tarot-city-a") && $("#tarot-city-a").value) || "").trim();
+    const b = (($("#tarot-city-b") && $("#tarot-city-b").value) || "").trim();
+    if (!a || !b) {
+      setTarotNotice("请先写下两座城名。");
+      return;
+    }
+    $("#tarot-question").value = `此时事业发展，去${a}还是去${b}更有利？`;
+    $("#tarot-opt-a").value = a;
+    $("#tarot-opt-b").value = b;
+    selectTarotEvent("travel");
+    setSpreadKind("complex");
+    selectedSpread = "choice";
+    renderTarotSpreads();
+    setTarotNotice("");
+    applyTarotCoach({ applySpread: true });
+    setTarotStep(2);
+    const draw = $("#btn-tarot-draw");
+    if (draw) draw.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   /* ---------- 塔罗 ---------- */
   function setTarotStep(n) {
     $$("#tarot-steps li").forEach((li) => {
@@ -944,24 +1165,48 @@
   function runTarotDraw(questionOverride, opts) {
     const T = window.TarotOracle;
     const followUp = !!(opts && opts.followUp);
+    const sincerityBox = $("#tarot-sincerity-box");
+    if (sincerityBox) sincerityBox.classList.remove("need-attention");
+    setTarotNotice("");
+
     if (!followUp && tarotSession.count > 0) {
-      alert("此事已铺牌。请用结果下方追问，或重置后另立新问。");
+      setTarotNotice("此事已铺牌。请用结果下方追问，或重置后另立新问。");
+      const mount = $("#tarot-result");
+      if (mount) mount.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (!followUp && !$("#tarot-sincerity").checked) {
-      alert("请先勾选静心确认（一事一铺）。");
+      setTarotNotice("请先勾选第一步的静心确认，再铺牌。");
+      if (sincerityBox) {
+        sincerityBox.classList.add("need-attention");
+        sincerityBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
     const q = (questionOverride || $("#tarot-question").value || "").trim();
     if (!q) {
-      alert("请写下所问之事。");
+      applyTarotCoach({ pulse: true });
+      setTarotNotice("请先写下所问，并点「确认立问」。");
+      $("#tarot-question").focus();
+      return;
+    }
+    const info = applyTarotCoach({ pulse: true, applySpread: !followUp });
+    if (!followUp && info.status !== "ok") {
+      setTarotNotice("问句过宽或未立。请按上方引导收窄后再铺牌。");
+      const coach = $("#tarot-coach");
+      if (coach) coach.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTarotStep(1);
       return;
     }
     if (selectedSpread === "choice") {
       const a = $("#tarot-opt-a").value.trim();
       const b = $("#tarot-opt-b").value.trim();
       if (!a || !b) {
-        alert("二选一须先写明方案甲、方案乙。");
+        setSpreadKind("complex");
+        selectedSpread = "choice";
+        renderTarotSpreads();
+        setTarotNotice("二选一须先写明方案甲、方案乙。");
+        $("#tarot-choice-fields").scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
     }
@@ -969,7 +1214,7 @@
       sameMatterConfirmed: followUp ? !!(opts && opts.sameMatter) : true
     });
     if (!gate.ok) {
-      alert(gate.message);
+      setTarotNotice(gate.message);
       return;
     }
 
@@ -1025,11 +1270,15 @@
     $("#tarot-question").value = "";
     $("#tarot-opt-a").value = "";
     $("#tarot-opt-b").value = "";
+    setTarotNotice("");
+    const box = $("#tarot-sincerity-box");
+    if (box) box.classList.remove("need-attention");
     $$(".spread-kind .chip-btn").forEach((b) =>
       b.classList.toggle("selected", b.dataset.kind === "simple")
     );
     renderTarotEvents();
     renderTarotSpreads();
+    applyTarotCoach();
     setTarotStep(1);
   }
 
@@ -1037,6 +1286,7 @@
     if (!window.TarotOracle || !$("#tarot-panel")) return;
     renderTarotEvents();
     renderTarotSpreads();
+    applyTarotCoach();
     setTarotStep(1);
 
     $("#tarot-event-grid").addEventListener("click", (e) => {
@@ -1067,7 +1317,54 @@
 
     $("#btn-tarot-draw").addEventListener("click", () => runTarotDraw());
     $("#btn-tarot-reset").addEventListener("click", resetTarot);
-    $("#tarot-question").addEventListener("input", () => setTarotStep(1));
+    $("#tarot-question").addEventListener("input", () => {
+      setTarotStep(1);
+      applyTarotCoach();
+    });
+    $("#tarot-question").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmTarotQuestion();
+      }
+    });
+    $("#btn-tarot-confirm-q").addEventListener("click", confirmTarotQuestion);
+    $("#tarot-coach").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-coach]");
+      if (!btn) return;
+      const act = btn.dataset.coach;
+      if (act === "example") {
+        $("#tarot-question").value = btn.dataset.q || "";
+        applyTarotCoach({ applySpread: true, pulse: true });
+        setTarotStep(1);
+      } else if (act === "choice") {
+        applyTarotChoiceFromCoach();
+      } else if (act === "complex") {
+        openComplexScenario("relocate");
+      } else if (act === "complex-career") {
+        openComplexScenario("career_path");
+      }
+    });
+  }
+
+  function confirmTarotQuestion() {
+    const info = applyTarotCoach({ applySpread: true, pulse: true });
+    const host = $("#tarot-coach");
+    if (host) host.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (info.status === "ok") {
+      setTarotNotice("");
+      setTarotStep(2);
+      if (!$("#tarot-sincerity").checked) {
+        setTarotNotice("问句已立。请勾选静心确认，再点「洗牌翻牌」。");
+        const box = $("#tarot-sincerity-box");
+        if (box) box.classList.add("need-attention");
+      } else {
+        const draw = $("#btn-tarot-draw");
+        if (draw) draw.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    } else {
+      setTarotNotice(info.status === "empty" ? "请先写下所问。" : "请按引导把问题收成一事。");
+      setTarotStep(1);
+    }
   }
 
   document.addEventListener("DOMContentLoaded", () => {

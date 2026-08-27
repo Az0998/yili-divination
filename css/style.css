@@ -1123,3 +1123,76 @@ textarea {
 html.embed .hero { padding-top: 0; }
 html.embed .footer { display: none; }
 
+.coach-host { margin-top: 14px; }
+
+.coach-card {
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  animation: rise 0.35s ease;
+}
+.coach-card.warn {
+  border-color: rgba(156, 59, 50, 0.65);
+  background: linear-gradient(180deg, rgba(156, 59, 50, 0.14), rgba(14, 11, 9, 0.88));
+}
+.coach-card.ok {
+  border-color: rgba(201, 168, 108, 0.55);
+  background: linear-gradient(180deg, rgba(201, 168, 108, 0.1), rgba(14, 11, 9, 0.88));
+}
+.coach-card.idle {
+  border-color: var(--line);
+}
+.coach-kicker {
+  margin: 0 0 6px;
+  letter-spacing: 0.32em;
+  font-size: 0.72rem;
+  color: var(--gold);
+}
+.coach-card.warn .coach-kicker { color: #e0b4ae; }
+.coach-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-title);
+  color: var(--accent);
+  font-size: 1.12rem;
+}
+.coach-card ol { margin: 8px 0 12px; padding-left: 1.2em; color: var(--ink-dim); }
+.coach-card li { margin: 4px 0; }
+.example-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.example-chips button {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.example-chips button:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.sincerity.need-attention {
+  border-color: var(--cinnabar);
+  box-shadow: 0 0 0 1px rgba(156, 59, 50, 0.45);
+}
+.oracle-notice {
+  width: 100%;
+  margin: 0 0 8px;
+  color: #e0b4ae;
+  font-size: 0.88rem;
+}
+.coach-card.pulse {
+  animation: coachPulse 0.8s ease;
+}
+@keyframes coachPulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 2px var(--cinnabar), 0 0 24px rgba(156, 59, 50, 0.35); }
+}
+
