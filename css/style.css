@@ -777,10 +777,14 @@ input:focus, select:focus, textarea:focus {
   display: grid;
   place-items: center;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.35s;
   backdrop-filter: blur(6px);
 }
-.ritual-overlay.show { opacity: 1; }
+.ritual-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 .ritual-inner { text-align: center; }
 .ritual-bagua {
@@ -1194,5 +1198,38 @@ html.embed .footer { display: none; }
 @keyframes coachPulse {
   0%, 100% { box-shadow: none; }
   50% { box-shadow: 0 0 0 2px var(--cinnabar), 0 0 24px rgba(156, 59, 50, 0.35); }
+}
+
+#oracle-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(16px);
+  z-index: 220;
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: #1c1610;
+  border: 1px solid var(--gold);
+  color: var(--accent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  text-align: center;
+}
+#oracle-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+#oracle-toast.warn {
+  border-color: var(--cinnabar);
+  color: #f0d2cc;
+}
+.btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 

@@ -166,8 +166,10 @@
 
   /** 起卦仪式遮罩 */
   function playRitual(onDone) {
+    document.querySelectorAll(".ritual-overlay").forEach((el) => el.remove());
     const overlay = document.createElement("div");
     overlay.className = "ritual-overlay";
+    overlay.setAttribute("aria-hidden", "true");
     overlay.innerHTML = `
       <div class="ritual-inner">
         <div class="ritual-bagua">☯</div>
@@ -176,12 +178,28 @@
       </div>`;
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add("show"));
+    const finish = () => {
+      overlay.remove();
+      try {
+        const ret = onDone && onDone();
+        if (ret && typeof ret.then === "function") {
+          ret.catch((err) => {
+            console.error(err);
+            if (window.flashOracle) {
+              window.flashOracle("未能成象：" + (err.message || String(err)), "warn");
+            }
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        if (window.flashOracle) {
+          window.flashOracle("未能成象：" + (err.message || String(err)), "warn");
+        }
+      }
+    };
     setTimeout(() => {
       overlay.classList.remove("show");
-      setTimeout(() => {
-        overlay.remove();
-        if (onDone) onDone();
-      }, 400);
+      setTimeout(finish, 400);
     }, 1600);
   }
 

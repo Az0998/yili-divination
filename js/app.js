@@ -6,10 +6,38 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
 
+  let toastTimer = 0;
+  function flashOracle(msg, level) {
+    let el = $("#oracle-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "oracle-toast";
+      el.setAttribute("role", "status");
+      document.body.appendChild(el);
+    }
+    el.textContent = String(msg || "");
+    el.className = (level === "warn" ? "warn " : "") + "show";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 4500);
+    if (level === "warn") setTarotNotice(msg);
+  }
+  window.flashOracle = flashOracle;
+
+  function setTarotDrawBusy(busy) {
+    const btn = $("#btn-tarot-draw");
+    if (!btn) return;
+    btn.disabled = !!busy;
+    btn.textContent = busy ? "正在洗牌…" : "洗牌翻牌";
+  }
+
   let selectedEvent = "decision";
   let selectedMethod = null;
-  let yiSession = window.YiSession.create("yi");
-  let tarotSession = window.YiSession.create("tarot");
+  let yiSession = window.YiSession
+    ? window.YiSession.create("yi")
+    : { count: 0, history: [], locked: false, rootQuestion: "" };
+  let tarotSession = window.YiSession
+    ? window.YiSession.create("tarot")
+    : { count: 0, history: [], locked: false, rootQuestion: "" };
   let lastYiResult = null;
   let lastTarot = null;
   let selectedTarotEvent = "decision";
@@ -1043,10 +1071,13 @@
     const T = window.TarotOracle;
     const rec = recommendedSpreads();
     const list = Object.values(T.SPREADS).filter((s) => s.kind === selectedSpreadKind);
+    if (!list.length) return;
     if (!list.some((s) => s.id === selectedSpread)) {
       selectedSpread = list.find((s) => rec.includes(s.id))?.id || list[0].id;
     }
-    $("#tarot-spread-list").innerHTML = list
+    const listEl = $("#tarot-spread-list");
+    if (!listEl) return;
+    listEl.innerHTML = list
       .map((s) => {
         const isRec = rec.includes(s.id);
         return `
@@ -1154,7 +1185,7 @@
         goBtn.onclick = () => {
           const q = (box.querySelector(".fu-q") || {}).value || "";
           const same = !!(box.querySelector(".fu-same") && box.querySelector(".fu-same").checked);
-          runTarotDraw(q.trim(), { followUp: true, sameMatter: same });
+          runTarotDrawSafe(q.trim(), { followUp: true, sameMatter: same });
         };
       }
     }
@@ -1162,51 +1193,82 @@
     mount.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function runTarotDrawSafe(questionOverride, opts) {
+    try {
+      runTarotDraw(questionOverride, opts);
+    } catch (err) {
+      console.error(err);
+      setTarotDrawBusy(false);
+      flashOracle("翻牌未成：" + (err && err.message ? err.message : String(err)), "warn");
+    }
+  }
+
   function runTarotDraw(questionOverride, opts) {
     const T = window.TarotOracle;
     const followUp = !!(opts && opts.followUp);
     const sincerityBox = $("#tarot-sincerity-box");
     if (sincerityBox) sincerityBox.classList.remove("need-attention");
-    setTarotNotice("");
+
+    if (!T) {
+      flashOracle("塔罗牌组未载入。请刷新页面后再试。", "warn");
+      return;
+    }
 
     if (!followUp && tarotSession.count > 0) {
-      setTarotNotice("此事已铺牌。请用结果下方追问，或重置后另立新问。");
+      flashOracle("此事已铺牌。请看下方结果追问，或点重置另立新问。", "warn");
       const mount = $("#tarot-result");
       if (mount) mount.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (!followUp && !$("#tarot-sincerity").checked) {
-      setTarotNotice("请先勾选第一步的静心确认，再铺牌。");
+      flashOracle("请先勾选第一步「静心确认」，再点洗牌翻牌。", "warn");
       if (sincerityBox) {
         sincerityBox.classList.add("need-attention");
         sincerityBox.scrollIntoView({ behavior: "smooth", block: "center" });
       }
       return;
     }
-    const q = (questionOverride || $("#tarot-question").value || "").trim();
+    const qEl = $("#tarot-question");
+    const q = (questionOverride || (qEl && qEl.value) || "").trim();
     if (!q) {
-      applyTarotCoach({ pulse: true });
-      setTarotNotice("请先写下所问，并点「确认立问」。");
-      $("#tarot-question").focus();
+      try {
+        applyTarotCoach({ pulse: true });
+      } catch (e) {
+        console.error(e);
+      }
+      flashOracle("请先写下所问。例如：迁往南京发展事业是否有利？", "warn");
+      if (qEl) qEl.focus();
       return;
     }
-    const info = applyTarotCoach({ pulse: true, applySpread: !followUp });
+
+    let info = { status: "ok", eventId: selectedTarotEvent };
+    try {
+      info = applyTarotCoach({ pulse: true, applySpread: !followUp }) || info;
+    } catch (e) {
+      console.error(e);
+    }
     if (!followUp && info.status !== "ok") {
-      setTarotNotice("问句过宽或未立。请按上方引导收窄后再铺牌。");
-      const coach = $("#tarot-coach");
-      if (coach) coach.scrollIntoView({ behavior: "smooth", block: "center" });
-      setTarotStep(1);
-      return;
+      if (/是否/.test(q) && q.length >= 6) {
+        info = { status: "ok", eventId: inferEventFromQuestion(q) };
+        selectTarotEvent(info.eventId);
+      } else {
+        flashOracle("问句过宽或未立。请按上方引导收窄后，再点洗牌翻牌。", "warn");
+        const coach = $("#tarot-coach");
+        if (coach) coach.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTarotStep(1);
+        return;
+      }
     }
     if (selectedSpread === "choice") {
-      const a = $("#tarot-opt-a").value.trim();
-      const b = $("#tarot-opt-b").value.trim();
+      const a = ($("#tarot-opt-a") && $("#tarot-opt-a").value.trim()) || "";
+      const b = ($("#tarot-opt-b") && $("#tarot-opt-b").value.trim()) || "";
       if (!a || !b) {
         setSpreadKind("complex");
         selectedSpread = "choice";
         renderTarotSpreads();
-        setTarotNotice("二选一须先写明方案甲、方案乙。");
-        $("#tarot-choice-fields").scrollIntoView({ behavior: "smooth", block: "center" });
+        flashOracle("二选一须先写明方案甲、方案乙。", "warn");
+        const fields = $("#tarot-choice-fields");
+        if (fields) fields.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
     }
@@ -1214,48 +1276,68 @@
       sameMatterConfirmed: followUp ? !!(opts && opts.sameMatter) : true
     });
     if (!gate.ok) {
-      setTarotNotice(gate.message);
+      flashOracle(gate.message, "warn");
       return;
     }
 
+    const spreadId = selectedSpread || "three";
     setTarotStep(2);
-    Viz.playRitual(() => {
-      const reading = T.draw(selectedSpread);
-      if (selectedSpread === "choice") {
-        const a = $("#tarot-opt-a").value.trim() || "甲";
-        const b = $("#tarot-opt-b").value.trim() || "乙";
-        reading.cards.forEach((c) => {
-          if (c.pos.id.startsWith("a")) c.pos.name = c.pos.name.replace("A", a);
-          if (c.pos.id.startsWith("b")) c.pos.name = c.pos.name.replace("B", b);
-        });
-      }
-      const summary = T.summarize(reading, q, selectedTarotEvent);
-      let yiCompare = null;
-      if ($("#tarot-compare-yi").checked) {
-        const now = new Date();
-        const yi = Yi.divinate("meihua_time", selectedTarotEvent, {
-          year: now.getFullYear(),
-          month: now.getMonth() + 1,
-          day: now.getDate(),
-          hour: now.getHours(),
+    setTarotDrawBusy(true);
+    flashOracle("正在洗牌翻牌…");
+    const ritual = window.YiViz && window.YiViz.playRitual;
+    const afterRitual = () => {
+      try {
+        const reading = T.draw(spreadId);
+        if (spreadId === "choice") {
+          const a = ($("#tarot-opt-a") && $("#tarot-opt-a").value.trim()) || "甲";
+          const b = ($("#tarot-opt-b") && $("#tarot-opt-b").value.trim()) || "乙";
+          reading.cards.forEach((c) => {
+            if (c.pos.id.startsWith("a")) c.pos.name = c.pos.name.replace("A", a);
+            if (c.pos.id.startsWith("b")) c.pos.name = c.pos.name.replace("B", b);
+          });
+        }
+        const summary = T.summarize(reading, q, selectedTarotEvent);
+        let yiCompare = null;
+        const compareEl = $("#tarot-compare-yi");
+        if (compareEl && compareEl.checked) {
+          const now = new Date();
+          const yi = Yi.divinate("meihua_time", selectedTarotEvent, {
+            year: now.getFullYear(),
+            month: now.getMonth() + 1,
+            day: now.getDate(),
+            hour: now.getHours(),
+            question: q,
+            askIndex: gate.index
+          });
+          yiCompare = T.compareWithYi(reading, yi);
+          lastYiResult = yi;
+        } else if (lastYiResult && lastYiResult.context && lastYiResult.context.question === q) {
+          yiCompare = T.compareWithYi(reading, lastYiResult);
+        }
+        lastTarot = {
+          reading,
+          summary,
           question: q,
-          askIndex: gate.index
-        });
-        yiCompare = T.compareWithYi(reading, yi);
-        lastYiResult = yi;
-      } else if (lastYiResult && lastYiResult.context && lastYiResult.context.question === q) {
-        yiCompare = T.compareWithYi(reading, lastYiResult);
+          eventId: selectedTarotEvent,
+          yiCompare,
+          askLabel: gate.label
+        };
+        const mount = $("#tarot-result");
+        if (!mount) throw new Error("结果区域未找到");
+        renderTarotResult(lastTarot, mount);
+        flashOracle("牌已翻开。请下看牌阵与读牌。");
+      } catch (err) {
+        console.error(err);
+        flashOracle("翻牌未成：" + (err.message || String(err)), "warn");
+      } finally {
+        setTarotDrawBusy(false);
       }
-      lastTarot = {
-        reading,
-        summary,
-        question: q,
-        eventId: selectedTarotEvent,
-        yiCompare,
-        askLabel: gate.label
-      };
-      renderTarotResult(lastTarot, $("#tarot-result"));
-    });
+    };
+    if (typeof ritual === "function") {
+      ritual(afterRitual);
+    } else {
+      afterRitual();
+    }
   }
 
   function resetTarot() {
@@ -1283,7 +1365,19 @@
   }
 
   function initTarot() {
-    if (!window.TarotOracle || !$("#tarot-panel")) return;
+    if (!$("#tarot-panel")) {
+      flashOracle("未找到塔罗面板。", "warn");
+      return;
+    }
+    if (!window.TarotOracle) {
+      flashOracle("塔罗牌组未载入。请刷新后再试。", "warn");
+      const host = $("#tarot-coach");
+      if (host) {
+        host.innerHTML =
+          '<div class="coach-card warn"><h3>塔罗未就绪</h3><p>脚本未载入。请强刷页面（Ctrl+F5）。</p></div>';
+      }
+      return;
+    }
     renderTarotEvents();
     renderTarotSpreads();
     applyTarotCoach();
@@ -1304,6 +1398,7 @@
         $$(".spread-kind .chip-btn").forEach((b) => b.classList.toggle("selected", b === btn));
         renderTarotSpreads();
         setTarotStep(2);
+        flashOracle("已选：" + (selectedSpreadKind === "simple" ? "简单牌阵" : "复杂牌阵"));
       });
     });
 
@@ -1313,10 +1408,10 @@
       selectedSpread = item.dataset.id;
       renderTarotSpreads();
       setTarotStep(2);
+      const meta = window.TarotOracle.SPREADS[selectedSpread];
+      flashOracle("牌阵：" + (meta ? meta.name : selectedSpread));
     });
 
-    $("#btn-tarot-draw").addEventListener("click", () => runTarotDraw());
-    $("#btn-tarot-reset").addEventListener("click", resetTarot);
     $("#tarot-question").addEventListener("input", () => {
       setTarotStep(1);
       applyTarotCoach();
@@ -1327,7 +1422,6 @@
         confirmTarotQuestion();
       }
     });
-    $("#btn-tarot-confirm-q").addEventListener("click", confirmTarotQuestion);
     $("#tarot-coach").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-coach]");
       if (!btn) return;
@@ -1336,11 +1430,15 @@
         $("#tarot-question").value = btn.dataset.q || "";
         applyTarotCoach({ applySpread: true, pulse: true });
         setTarotStep(1);
+        flashOracle("已填入示例问句。可再点「确认立问」或直接「洗牌翻牌」。");
       } else if (act === "choice") {
         applyTarotChoiceFromCoach();
+        flashOracle("已改为两城二选一。勾选静心后点洗牌翻牌。");
       } else if (act === "complex") {
+        flashOracle("转至复杂问事 · 迁居择城。");
         openComplexScenario("relocate");
       } else if (act === "complex-career") {
+        flashOracle("转至复杂问事 · 职业赛道。");
         openComplexScenario("career_path");
       }
     });
@@ -1351,10 +1449,10 @@
     const host = $("#tarot-coach");
     if (host) host.scrollIntoView({ behavior: "smooth", block: "center" });
     if (info.status === "ok") {
-      setTarotNotice("");
+      flashOracle("问句已立。勾选静心后，点「洗牌翻牌」。");
       setTarotStep(2);
       if (!$("#tarot-sincerity").checked) {
-        setTarotNotice("问句已立。请勾选静心确认，再点「洗牌翻牌」。");
+        flashOracle("问句已立。请勾选静心确认，再点「洗牌翻牌」。", "warn");
         const box = $("#tarot-sincerity-box");
         if (box) box.classList.add("need-attention");
       } else {
@@ -1362,26 +1460,65 @@
         if (draw) draw.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     } else {
-      setTarotNotice(info.status === "empty" ? "请先写下所问。" : "请按引导把问题收成一事。");
+      flashOracle(info.status === "empty" ? "请先写下所问。" : "请按引导把问题收成一事。", "warn");
       setTarotStep(1);
     }
   }
 
+  function boot(name, fn) {
+    try {
+      fn();
+    } catch (err) {
+      console.error(name, err);
+      flashOracle(name + "未就绪：" + (err.message || String(err)), "warn");
+    }
+  }
+
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#btn-tarot-draw")) {
+      e.preventDefault();
+      runTarotDrawSafe();
+      return;
+    }
+    if (e.target.closest("#btn-tarot-confirm-q")) {
+      e.preventDefault();
+      try {
+        confirmTarotQuestion();
+      } catch (err) {
+        flashOracle("立问未成：" + (err.message || String(err)), "warn");
+      }
+      return;
+    }
+    if (e.target.closest("#btn-tarot-reset")) {
+      e.preventDefault();
+      try {
+        resetTarot();
+        flashOracle("已重置塔罗。请重新立问。");
+      } catch (err) {
+        flashOracle("重置未成：" + (err.message || String(err)), "warn");
+      }
+    }
+  });
+
   document.addEventListener("DOMContentLoaded", () => {
-    initAtmosphere();
-    initTabs();
-    fillNow("ctx");
-    initEvents();
-    renderMethods();
-    initClassic();
-    initComplex();
-    initTarot();
+    boot("星空", initAtmosphere);
+    boot("标签", initTabs);
+    boot("天时", () => fillNow("ctx"));
+    boot("事类", initEvents);
+    boot("筮法", renderMethods);
+    boot("古典", initClassic);
+    boot("复杂问事", initComplex);
+    boot("塔罗", initTarot);
     setRitualStep(1);
 
-    $("#btn-fill-now").addEventListener("click", () => fillNow("ctx"));
-    $("#ctx-hour").addEventListener("input", updateShichenHint);
-    $("#btn-cast").addEventListener("click", runCast);
-    $("#btn-reset-cast").addEventListener("click", resetCast);
+    const fill = $("#btn-fill-now");
+    if (fill) fill.addEventListener("click", () => fillNow("ctx"));
+    const hour = $("#ctx-hour");
+    if (hour) hour.addEventListener("input", updateShichenHint);
+    const cast = $("#btn-cast");
+    if (cast) cast.addEventListener("click", runCast);
+    const reset = $("#btn-reset-cast");
+    if (reset) reset.addEventListener("click", resetCast);
 
     ["#ctx-year", "#ctx-month", "#ctx-day", "#ctx-place", "#ctx-direction", "#ctx-person"].forEach(
       (sel) => {
@@ -1389,6 +1526,7 @@
         if (el) el.addEventListener("change", () => setRitualStep(2));
       }
     );
-    $("#ctx-question").addEventListener("input", () => setRitualStep(1));
+    const q = $("#ctx-question");
+    if (q) q.addEventListener("input", () => setRitualStep(1));
   });
 })();
