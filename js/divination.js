@@ -523,7 +523,7 @@
   }
 
   /* ========== 事件断语生成 ========== */
-  function interpretEvent(eventId, tiYong, bengua, biangua, moving, season, classical) {
+  function interpretEvent(eventId, tiYong, bengua, biangua, moving, season, classical, context) {
     const ev = EVENT_TYPES[eventId] || EVENT_TYPES.decision;
     let score = tiYong.luck.score + (season ? season.scoreAdj : 0);
     score = Math.max(5, Math.min(95, score));
@@ -550,11 +550,33 @@
     if (biangua && biangua.name !== bengua?.name) {
       lines.push(`之卦「${biangua.name}」：${biangua.guaCi}`);
     }
+
+    const Oracle = window.YiOracleText;
+    let local = null;
+    let localBian = null;
+    if (Oracle && bengua) {
+      local = Oracle.getLocalOracle(bengua, eventId, context);
+      if (local) {
+        lines.push(`【因地制宜】${local.eventText}`);
+        (local.localNotes || []).forEach((n) => lines.push(n));
+      }
+      if (biangua && biangua.name !== bengua.name) {
+        localBian = Oracle.getLocalOracle(biangua, eventId, context);
+        if (localBian) lines.push(`【之卦因地】${localBian.eventText}`);
+      }
+    }
+
     if (season && season.notes.length) lines.push(...season.notes);
+
+    const askIndex = context && context.askIndex;
+    if (askIndex === 1) lines.push("【筮次】初筮。象已告，宜玩辞自警。");
+    if (askIndex === 2) lines.push("【筮次】再筮。只为澄清初象，不可推翻前断。");
+    if (askIndex >= 3) lines.push("【筮次】三筮已终。《蒙》曰再三渎则不告。此事宜止占。");
+
     lines.push("《系辞》云：君子居则观其象而玩其辞，动则观其变而玩其占。");
     lines.push(...ev.tips.map((t) => "· " + t));
 
-    return { score, verdict, lines, event: ev, classical };
+    return { score, verdict, lines, event: ev, classical, local, localBian };
   }
 
   /* ========== 统一起卦入口 ========== */
@@ -572,7 +594,7 @@
     const tiYong = analyzeTiYong(binary, moving, eventId);
     const season = seasonInfluence(tiYong, context);
     const classical = classicalMovingReading(bengua, biangua, moving);
-    const reading = interpretEvent(eventId, tiYong, bengua, biangua, moving, season, classical);
+    const reading = interpretEvent(eventId, tiYong, bengua, biangua, moving, season, classical, context);
 
     return {
       ...cast,

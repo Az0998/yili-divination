@@ -4,11 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>易理占筮 · 太极八卦六十四阵</title>
-  <meta name="description" content="依周易象数与梅花易数：一事一占，天时地利人和，体用生克，朱熹动爻玩辞法。">
+  <meta name="description" content="依周易象数与梅花易数、韦特塔罗：一事一占，事不过三，天时地利人和，体用生克，因地制宜。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      if (q.get("embed") === "1" || window.parent !== window) {
+        document.documentElement.classList.add("embed");
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="bagua-field" class="bagua-field" aria-hidden="true"></div>
@@ -16,12 +24,17 @@
 
   <div class="app">
     <header class="hero">
-      <p class="eyebrow">观象玩辞 · 三才合一</p>
+      <div class="hero-ornament" aria-hidden="true">
+        <span>䷀</span><i></i><span>䷁</span>
+      </div>
+      <p class="eyebrow">寂然不动 · 感而遂通</p>
       <h1>易理占筮</h1>
       <p class="subtitle">太极生两仪，两仪生四象，四象生八卦，八卦定吉凶</p>
+      <p class="hero-couplet">初筮告 · 再三渎则不告 · 事不过三</p>
       <nav class="tabs" role="tablist">
         <button class="tab active" data-panel="cast" role="tab">起卦问事</button>
         <button class="tab" data-panel="complex" role="tab">复杂问事</button>
+        <button class="tab" data-panel="tarot" role="tab">西占·塔罗</button>
         <button class="tab" data-panel="classic" role="tab">古典起卦</button>
         <button class="tab" data-panel="study" role="tab">易理说明</button>
       </nav>
@@ -133,6 +146,64 @@
         </div>
 
         <div id="cast-result" class="result-region" data-flow="4"></div>
+      </section>
+
+      <section id="tarot-panel" class="panel">
+        <ol class="ritual-steps" id="tarot-steps">
+          <li class="active" data-step="1"><span>壹</span>立问专一</li>
+          <li data-step="2"><span>贰</span>择阵洗牌</li>
+          <li data-step="3"><span>叁</span>翻牌读位</li>
+          <li data-step="4"><span>肆</span>对照易理</li>
+        </ol>
+
+        <div class="step-card" data-flow="1">
+          <div class="step-head">
+            <span class="step-no">西</span>
+            <div>
+              <h2>韦特塔罗 · 一事一铺</h2>
+              <p>Rider–Waite–Smith 体系。洗牌切牌、正逆位并读。简单问用单张或三张；大事用马蹄或凯尔特十字。事不过三。</p>
+            </div>
+          </div>
+          <label class="sincerity">
+            <input type="checkbox" id="tarot-sincerity">
+            <span>我已静心，所问唯一事；知牌象为象征而非宿命，不以占废人谋。</span>
+          </label>
+          <div class="event-grid" id="tarot-event-grid"></div>
+          <label class="q-label">所问（宜明确可答）
+            <input type="text" id="tarot-question" placeholder="例：这段关系当下该如何自处？ / 此次求职核心阻力是什么？">
+          </label>
+        </div>
+
+        <div class="step-card">
+          <div class="step-head">
+            <span class="step-no">阵</span>
+            <div>
+              <h2>牌阵</h2>
+              <p>先辨问之简繁，再择阵。二选一须先写明两案。</p>
+            </div>
+          </div>
+          <div class="spread-kind">
+            <button type="button" class="chip-btn selected" data-kind="simple">简单问（单张 / 三张）</button>
+            <button type="button" class="chip-btn" data-kind="complex">复杂问（选择 / 关系 / 十字）</button>
+          </div>
+          <div class="method-list" id="tarot-spread-list"></div>
+          <div id="tarot-choice-fields" class="hidden">
+            <div class="form-grid">
+              <label>方案甲<input type="text" id="tarot-opt-a" placeholder="如：接受offer"></label>
+              <label>方案乙<input type="text" id="tarot-opt-b" placeholder="如：继续原职"></label>
+            </div>
+          </div>
+          <label class="sincerity">
+            <input type="checkbox" id="tarot-compare-yi">
+            <span>同题附梅花一卦，作中西对照（非强行对号）。</span>
+          </label>
+          <div class="cast-actions">
+            <button type="button" class="btn primary glow" id="btn-tarot-draw">洗牌翻牌</button>
+            <button type="button" class="btn ghost" id="btn-tarot-reset">重置</button>
+          </div>
+        </div>
+
+        <div id="tarot-result" class="result-region"></div>
       </section>
 
       <section id="complex-panel" class="panel">
@@ -262,8 +333,10 @@
         <div class="step-card article">
           <h2>易理纲要</h2>
           <p>本站象数模拟，旨在助人玩辞自警，非宿命裁定。人谋在先，神谋在后。</p>
-          <h3>一事一占</h3>
-          <p>问事宜专一明确。同一事不可连占；心不诚则象不应。</p>
+          <h3>一事一占 · 事不过三</h3>
+          <p>问事宜专一明确。《蒙》曰：初筮告，再三渎，渎则不告。本站允许就<strong>同一件事</strong>追问以澄清未明之象，合计三次（含初筮）。再筮不得推翻初象，三筮之后锁止。另事须重置后另立初筮。同一问句不可复占。</p>
+          <h3>因地制宜</h3>
+          <p>卦辞为象，落地须合事类与风土。事业、婚恋、财、病、行、讼、考、抉择各有取象；方位配先天八卦，地气与上卦下卦参看。辞为参考，非宿命。</p>
           <h3>动爻玩辞（朱熹《易学启蒙》通行法）</h3>
           <ul>
             <li>安静：本卦卦辞</li>
@@ -286,19 +359,24 @@
             <li>正断：对每一候选<strong>单独</strong>起卦（一事一占）</li>
             <li>排序：以体用生克与朱熹动爻玩辞为主，命理缩圈为辅</li>
           </ul>
+          <h3>韦特塔罗规范</h3>
+          <p>本站西占用 Rider–Waite–Smith 七十八张，含大阿尔克那二十二、小牌与宫廷。洗牌后依牌阵位置读正逆位。单张与三张宜日常；二选一、关系六张、马蹄七张、凯尔特十字宜大事。塔罗言心理与象征故事，易卦言时位与体用；同题对照时，同向则信，相悖则事体未明，宜止占。</p>
           <h3>郑重声明</h3>
-          <p>仅供《周易》文化与象数学习，不构成决策、医疗、移民或投资建议。</p>
+          <p>仅供《周易》文化、象数与塔罗象征学习，不构成决策、医疗、移民或投资建议。</p>
         </div>
       </section>
     </main>
 
     <footer class="footer">
-      <p>易理占筮 · 太极八卦六十四阵 · 象数学习</p>
+      <p>易理占筮 · 太极八卦六十四阵 · 韦特塔罗 · 象数学习</p>
     </footer>
   </div>
 
   <script src="js/hexagrams.js"></script>
   <script src="js/divination.js"></script>
+  <script src="js/oracle-text.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/tarot.js"></script>
   <script src="js/bazi.js"></script>
   <script src="js/complex.js"></script>
   <script src="js/bagua-field.js"></script>

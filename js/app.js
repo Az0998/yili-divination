@@ -8,6 +8,13 @@
 
   let selectedEvent = "decision";
   let selectedMethod = null;
+  let yiSession = window.YiSession.create("yi");
+  let tarotSession = window.YiSession.create("tarot");
+  let lastYiResult = null;
+  let lastTarot = null;
+  let selectedTarotEvent = "decision";
+  let selectedSpreadKind = "simple";
+  let selectedSpread = "three";
 
   function setRitualStep(n) {
     $$("#ritual-steps li").forEach((li) => {
@@ -184,6 +191,72 @@
       </div>`;
   }
 
+  function renderAskDots(session) {
+    return `<div class="ask-meter" aria-label="筮次">${[1, 2, 3]
+      .map(
+        (i) =>
+          `<span class="ask-dot ${i <= session.count ? "on" : ""} ${
+            session.locked && i === 3 ? "lock" : ""
+          }"></span>`
+      )
+      .join("")}</div>`;
+  }
+
+  function renderLocalOracleCard(result) {
+    const loc = result.reading && result.reading.local;
+    if (!loc) return "";
+    const notes = (loc.localNotes || []).map((n) => `<p class="verdict-sub">${n}</p>`).join("");
+    const bian =
+      result.reading.localBian && result.biangua
+        ? `<p class="verdict-sub">之卦「${result.biangua.name}」：${result.reading.localBian.eventText}</p>`
+        : "";
+    return `
+      <div class="result-card local-oracle">
+        <h3>因地制宜 · ${result.bengua ? result.bengua.name : ""}</h3>
+        <p class="event-line">${loc.eventText}</p>
+        ${bian}
+        ${notes}
+        <p class="hint">辞随事类与风土而转，不可执死辞以概天下。</p>
+      </div>`;
+  }
+
+  function renderFollowUpCard(session) {
+    if (!session || session.count < 1) return "";
+    const hist = `<ol class="followup-history">${session.history
+      .map(
+        (q, i) =>
+          `<li>${i === 0 ? "初筮" : i === 1 ? "再筮" : "三筮"}：${q}</li>`
+      )
+      .join("")}</ol>`;
+    if (session.locked || session.count >= 3) {
+      return `
+        <div class="result-card followup-card locked">
+          <h3>渎则不告</h3>
+          <p>《蒙》：初筮告，再三渎，渎则不告。此事三筮已终，宜玩已得之象，勿再占。</p>
+          ${renderAskDots(session)}
+          ${hist}
+        </div>`;
+    }
+    const nextLabel = session.count === 1 ? "再筮" : "三筮（末）";
+    return `
+      <div class="result-card followup-card">
+        <h3>追问 · ${nextLabel} <span class="session-label">事不过三</span></h3>
+        <p>若象未明，可就<strong>同一件事</strong>再问一层。再筮只为澄清，不可推翻初象。</p>
+        ${renderAskDots(session)}
+        ${hist}
+        <label class="sincerity">
+          <input type="checkbox" class="fu-same">
+          <span>此问仍属「${session.rootQuestion}」同一件事，不为另事。</span>
+        </label>
+        <label class="q-label">追问（换一层问法，勿复述原句）
+          <input type="text" class="fu-q" placeholder="例：对方态度如何？ / 宜守还是宜进？">
+        </label>
+        <div class="cast-actions">
+          <button type="button" class="btn primary fu-go">${nextLabel}</button>
+          <button type="button" class="btn ghost fu-seal">了结此事</button>
+        </div>
+      </div>`;
+  }
   function renderClassicalCard(classical) {
     if (!classical) return "";
     return `
@@ -217,7 +290,11 @@
     mount.innerHTML = `
       <div class="result-card oracle-banner">
         <div>
-          <p class="eyebrow">${result.methodMeta.name} · ${rd.event.name}</p>
+          <p class="eyebrow">${result.methodMeta.name} · ${rd.event.name}${
+            result.context && result.context.askLabel
+              ? ` · ${result.context.askLabel}`
+              : ""
+          }</p>
           <h2 class="verdict-title">${rd.verdict}</h2>
           <p class="verdict-sub">${ctx.question ? "所问：" + ctx.question + " · " : ""}${ctx.seasonNote}</p>
           <div class="chips">
@@ -251,6 +328,8 @@
 
       ${renderClassicalCard(result.classical)}
 
+      ${renderLocalOracleCard(result)}
+
       <div class="result-card">
         <h3>体用生克</h3>
         <p>体 <strong style="color:#fff">${ty.tiName}</strong>（${ty.ti}·${ty.tiNature}）
@@ -270,6 +349,7 @@
 
       ${renderGuaTextCard("本卦详解", result.bengua, result.binary, result.lines, movingSet, true)}
       ${renderGuaTextCard("之卦详解", result.biangua, result.bianguaBinary, bianguaLines, new Set(), false)}
+      ${mount.id === "cast-result" ? renderFollowUpCard(yiSession) : ""}
     `;
 
     const meter = mount.querySelector("#meter-host");
@@ -284,12 +364,33 @@
       color: "#9a9a9a"
     });
 
+    bindYiFollowUp(mount);
     setRitualStep(4);
     mount.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function validateForMethod(method, ctx) {
-    if (!$("#sincerity-check").checked) {
+  function bindYiFollowUp(mount) {
+    const box = mount.querySelector(".followup-card");
+    if (!box) return;
+    const sealBtn = box.querySelector(".fu-seal");
+    const goBtn = box.querySelector(".fu-go");
+    if (sealBtn) {
+      sealBtn.onclick = () => {
+        window.YiSession.seal(yiSession);
+        if (lastYiResult) renderFullResult(lastYiResult, mount);
+      };
+    }
+    if (goBtn) {
+      goBtn.onclick = () => {
+        const q = (box.querySelector(".fu-q") || {}).value || "";
+        const same = !!(box.querySelector(".fu-same") && box.querySelector(".fu-same").checked);
+        runYiFollowUp(q.trim(), same);
+      };
+    }
+  }
+
+  function validateForMethod(method, ctx, opts) {
+    if (!(opts && opts.skipSincerity) && !$("#sincerity-check").checked) {
       return "请先勾选「净心立问」诚意确认（一事一占）。";
     }
     if (!ctx.question) {
@@ -310,19 +411,10 @@
     return null;
   }
 
-  async function runCast() {
-    const ctx = readContext();
-    const err = validateForMethod(selectedMethod, ctx);
-    if (err) {
-      alert(err);
-      return;
-    }
-
-    setRitualStep(3);
+  function performYiCast(ctx) {
     const stage = $("#coin-stage");
     const mount = $("#cast-result");
     mount.innerHTML = "";
-
     Viz.playRitual(async () => {
       let result;
       if (selectedMethod === "liuyao") {
@@ -343,13 +435,59 @@
         stage.hidden = true;
         result = Yi.divinate(selectedMethod, selectedEvent, ctx);
       }
+      lastYiResult = result;
       renderFullResult(result, mount);
     });
+  }
+
+  async function runCast() {
+    if (yiSession.count > 0) {
+      alert("此事已起卦。请用结果下方追问澄清，或重置后另立新问。");
+      return;
+    }
+    const ctx = readContext();
+    const err = validateForMethod(selectedMethod, ctx);
+    if (err) {
+      alert(err);
+      return;
+    }
+    const gate = window.YiSession.ask(yiSession, ctx.question, selectedEvent);
+    if (!gate.ok) {
+      alert(gate.message);
+      return;
+    }
+    ctx.askIndex = gate.index;
+    ctx.askLabel = gate.label;
+    setRitualStep(3);
+    performYiCast(ctx);
+  }
+
+  function runYiFollowUp(question, sameMatter) {
+    const ctx = readContext();
+    ctx.question = question;
+    const err = validateForMethod(selectedMethod, ctx, { skipSincerity: true });
+    if (err) {
+      alert(err);
+      return;
+    }
+    const gate = window.YiSession.ask(yiSession, question, selectedEvent, {
+      sameMatterConfirmed: sameMatter
+    });
+    if (!gate.ok) {
+      alert(gate.message);
+      return;
+    }
+    ctx.askIndex = gate.index;
+    ctx.askLabel = gate.label;
+    setRitualStep(3);
+    performYiCast(ctx);
   }
 
   function resetCast() {
     selectedEvent = "decision";
     selectedMethod = null;
+    yiSession = window.YiSession.create("yi");
+    lastYiResult = null;
     $("#cast-result").innerHTML = "";
     $("#coin-stage").hidden = true;
     $("#sincerity-check").checked = false;
@@ -616,6 +754,16 @@
             <p>${cl ? cl.rule : ""}</p>
             <p>${cl && cl.primaryText ? "主断辞：" + cl.primaryText : ""}</p>
           </div>
+          ${
+            window.YiOracleText && r.bengua
+              ? `<div class="text-block"><h4>因地制宜</h4><p>${
+                  (window.YiOracleText.getLocalOracle(r.bengua, out.scenario.eventId || "decision", {
+                    place: row.option.name,
+                    direction: row.option.dir
+                  }) || {}).eventText || ""
+                }</p></div>`
+              : ""
+          }
         </div>`;
       })
       .join("");
@@ -640,6 +788,288 @@
     mount.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /* ---------- 塔罗 ---------- */
+  function setTarotStep(n) {
+    $$("#tarot-steps li").forEach((li) => {
+      const s = Number(li.dataset.step);
+      li.classList.toggle("active", s === n);
+      li.classList.toggle("done", s < n);
+    });
+  }
+
+  function renderTarotEvents() {
+    const grid = $("#tarot-event-grid");
+    if (!grid) return;
+    grid.innerHTML = Object.values(Yi.EVENT_TYPES)
+      .map(
+        (ev) => `
+      <button type="button" class="event-card ${ev.id === selectedTarotEvent ? "selected" : ""}" data-id="${ev.id}">
+        <span class="event-icon">${ev.icon}</span>
+        <span class="event-name">${ev.name}</span>
+        <span class="event-desc">${ev.desc}</span>
+      </button>`
+      )
+      .join("");
+  }
+
+  function recommendedSpreads() {
+    const T = window.TarotOracle;
+    const rec = T.EVENT_SPREAD[selectedTarotEvent] || ["three", "situation", "celtic"];
+    return rec;
+  }
+
+  function renderTarotSpreads() {
+    const T = window.TarotOracle;
+    const rec = recommendedSpreads();
+    const list = Object.values(T.SPREADS).filter((s) => s.kind === selectedSpreadKind);
+    if (!list.some((s) => s.id === selectedSpread)) {
+      selectedSpread = list.find((s) => rec.includes(s.id))?.id || list[0].id;
+    }
+    $("#tarot-spread-list").innerHTML = list
+      .map((s) => {
+        const isRec = rec.includes(s.id);
+        return `
+        <button type="button" class="method-item ${s.id === selectedSpread ? "selected" : ""} ${isRec ? "recommended" : ""}" data-id="${s.id}">
+          <span class="method-radio"></span>
+          <span class="method-body">
+            <strong>${s.name}${isRec ? '<span class="tag">宜此阵</span>' : ""}</strong>
+            <span>${s.desc}</span>
+          </span>
+        </button>`;
+      })
+      .join("");
+    $("#tarot-choice-fields").classList.toggle("hidden", selectedSpread !== "choice");
+  }
+
+  function renderTarotCard(drawn, delay) {
+    const c = drawn.card;
+    const cls = ["tarot-card", c.arcana === "major" ? "major" : "minor", drawn.reversed ? "reversed" : ""];
+    return `
+      <article class="${cls.join(" ")}" style="animation-delay:${delay}s">
+        <div class="tarot-card-inner">
+          <div class="tarot-glyph">${c.glyph || ""}</div>
+          <div class="tarot-name">${c.name}</div>
+          <div class="tarot-en">${c.en || ""}</div>
+          ${c.suit ? `<div class="tarot-suit">${c.suit.name} · ${c.suit.elem}</div>` : `<div class="tarot-suit">大阿尔克那</div>`}
+          <div class="tarot-orient">${drawn.reversed ? "逆位" : "正位"}</div>
+        </div>
+      </article>`;
+  }
+
+  function spreadClass(id) {
+    if (id === "celtic") return "tarot-spread spread-celtic";
+    return "tarot-spread";
+  }
+
+  function renderTarotResult(payload, mount) {
+    const { reading, summary, question, eventId, yiCompare, askLabel } = payload;
+    const ev = Yi.EVENT_TYPES[eventId] || Yi.EVENT_TYPES.decision;
+    const cardsHtml = reading.cards
+      .map(
+        (d, i) => `
+        <div class="tarot-pos">
+          <div class="tarot-pos-name">${d.pos.name}</div>
+          ${renderTarotCard(d, i * 0.08)}
+          <div class="tarot-pos-hint">${d.pos.hint}</div>
+        </div>`
+      )
+      .join("");
+
+    const detail = reading.cards
+      .map(
+        (d) => `
+        <div class="text-block">
+          <h4>${d.pos.name} · ${d.card.name}${d.reversed ? "（逆）" : "（正）"}</h4>
+          <p>${d.text}</p>
+          ${d.card.yi ? `<p class="verdict-sub">易象线索：${d.card.yi}</p>` : ""}
+        </div>`
+      )
+      .join("");
+
+    const yiHtml = yiCompare
+      ? `<div class="result-card compare-block">
+          <h3>中西对照</h3>
+          ${yiCompare.map((l) => `<p class="tarot-reading">${l}</p>`).join("")}
+        </div>`
+      : "";
+
+    mount.innerHTML = `
+      <div class="result-card oracle-banner">
+        <div>
+          <p class="eyebrow">韦特塔罗 · ${reading.spread.name} · ${ev.name}${askLabel ? " · " + askLabel : ""}</p>
+          <h2 class="verdict-title">${reading.spread.name}</h2>
+          <p class="verdict-sub">所问：${question}</p>
+          <div class="chips">
+            <span class="chip">大牌 ${summary.majors}</span>
+            <span class="chip">逆位 ${summary.revs}</span>
+            ${summary.yiEcho && summary.yiEcho.length ? `<span class="chip">易象 ${summary.yiEcho.join("、")}</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="result-card">
+        <h3>牌阵</h3>
+        <div class="${spreadClass(reading.spread.id)}">${cardsHtml}</div>
+      </div>
+      <div class="result-card">
+        <h3>读牌</h3>
+        ${summary.lines.map((l) => `<p class="tarot-reading">${l}</p>`).join("")}
+        ${detail}
+      </div>
+      ${yiHtml}
+      ${renderFollowUpCard(tarotSession)}
+    `;
+
+    const box = mount.querySelector(".followup-card");
+    if (box) {
+      const sealBtn = box.querySelector(".fu-seal");
+      const goBtn = box.querySelector(".fu-go");
+      if (sealBtn) {
+        sealBtn.onclick = () => {
+          window.YiSession.seal(tarotSession);
+          renderTarotResult(lastTarot, mount);
+        };
+      }
+      if (goBtn) {
+        goBtn.onclick = () => {
+          const q = (box.querySelector(".fu-q") || {}).value || "";
+          const same = !!(box.querySelector(".fu-same") && box.querySelector(".fu-same").checked);
+          runTarotDraw(q.trim(), { followUp: true, sameMatter: same });
+        };
+      }
+    }
+    setTarotStep(yiCompare ? 4 : 3);
+    mount.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function runTarotDraw(questionOverride, opts) {
+    const T = window.TarotOracle;
+    const followUp = !!(opts && opts.followUp);
+    if (!followUp && tarotSession.count > 0) {
+      alert("此事已铺牌。请用结果下方追问，或重置后另立新问。");
+      return;
+    }
+    if (!followUp && !$("#tarot-sincerity").checked) {
+      alert("请先勾选静心确认（一事一铺）。");
+      return;
+    }
+    const q = (questionOverride || $("#tarot-question").value || "").trim();
+    if (!q) {
+      alert("请写下所问之事。");
+      return;
+    }
+    if (selectedSpread === "choice") {
+      const a = $("#tarot-opt-a").value.trim();
+      const b = $("#tarot-opt-b").value.trim();
+      if (!a || !b) {
+        alert("二选一须先写明方案甲、方案乙。");
+        return;
+      }
+    }
+    const gate = window.YiSession.ask(tarotSession, q, selectedTarotEvent, {
+      sameMatterConfirmed: followUp ? !!(opts && opts.sameMatter) : true
+    });
+    if (!gate.ok) {
+      alert(gate.message);
+      return;
+    }
+
+    setTarotStep(2);
+    Viz.playRitual(() => {
+      const reading = T.draw(selectedSpread);
+      if (selectedSpread === "choice") {
+        const a = $("#tarot-opt-a").value.trim() || "甲";
+        const b = $("#tarot-opt-b").value.trim() || "乙";
+        reading.cards.forEach((c) => {
+          if (c.pos.id.startsWith("a")) c.pos.name = c.pos.name.replace("A", a);
+          if (c.pos.id.startsWith("b")) c.pos.name = c.pos.name.replace("B", b);
+        });
+      }
+      const summary = T.summarize(reading, q, selectedTarotEvent);
+      let yiCompare = null;
+      if ($("#tarot-compare-yi").checked) {
+        const now = new Date();
+        const yi = Yi.divinate("meihua_time", selectedTarotEvent, {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          day: now.getDate(),
+          hour: now.getHours(),
+          question: q,
+          askIndex: gate.index
+        });
+        yiCompare = T.compareWithYi(reading, yi);
+        lastYiResult = yi;
+      } else if (lastYiResult && lastYiResult.context && lastYiResult.context.question === q) {
+        yiCompare = T.compareWithYi(reading, lastYiResult);
+      }
+      lastTarot = {
+        reading,
+        summary,
+        question: q,
+        eventId: selectedTarotEvent,
+        yiCompare,
+        askLabel: gate.label
+      };
+      renderTarotResult(lastTarot, $("#tarot-result"));
+    });
+  }
+
+  function resetTarot() {
+    tarotSession = window.YiSession.create("tarot");
+    lastTarot = null;
+    selectedTarotEvent = "decision";
+    selectedSpreadKind = "simple";
+    selectedSpread = "three";
+    $("#tarot-result").innerHTML = "";
+    $("#tarot-sincerity").checked = false;
+    $("#tarot-compare-yi").checked = false;
+    $("#tarot-question").value = "";
+    $("#tarot-opt-a").value = "";
+    $("#tarot-opt-b").value = "";
+    $$(".spread-kind .chip-btn").forEach((b) =>
+      b.classList.toggle("selected", b.dataset.kind === "simple")
+    );
+    renderTarotEvents();
+    renderTarotSpreads();
+    setTarotStep(1);
+  }
+
+  function initTarot() {
+    if (!window.TarotOracle || !$("#tarot-panel")) return;
+    renderTarotEvents();
+    renderTarotSpreads();
+    setTarotStep(1);
+
+    $("#tarot-event-grid").addEventListener("click", (e) => {
+      const card = e.target.closest(".event-card");
+      if (!card) return;
+      selectedTarotEvent = card.dataset.id;
+      $$("#tarot-event-grid .event-card").forEach((c) => c.classList.toggle("selected", c === card));
+      renderTarotSpreads();
+      setTarotStep(1);
+    });
+
+    $$(".spread-kind .chip-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedSpreadKind = btn.dataset.kind;
+        $$(".spread-kind .chip-btn").forEach((b) => b.classList.toggle("selected", b === btn));
+        renderTarotSpreads();
+        setTarotStep(2);
+      });
+    });
+
+    $("#tarot-spread-list").addEventListener("click", (e) => {
+      const item = e.target.closest(".method-item");
+      if (!item) return;
+      selectedSpread = item.dataset.id;
+      renderTarotSpreads();
+      setTarotStep(2);
+    });
+
+    $("#btn-tarot-draw").addEventListener("click", () => runTarotDraw());
+    $("#btn-tarot-reset").addEventListener("click", resetTarot);
+    $("#tarot-question").addEventListener("input", () => setTarotStep(1));
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     initAtmosphere();
     initTabs();
@@ -648,6 +1078,7 @@
     renderMethods();
     initClassic();
     initComplex();
+    initTarot();
     setRitualStep(1);
 
     $("#btn-fill-now").addEventListener("click", () => fillNow("ctx"));

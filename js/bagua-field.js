@@ -111,7 +111,7 @@
       for (let i = 0; i < 3; i++) {
         const y = size / 2 - i * (thick + gap) - thick;
         const yang = bin[i] === "1";
-        ctx.fillStyle = "#e8e8e8";
+        ctx.fillStyle = "#e8d5a3";
         if (yang) {
           ctx.fillRect(-width / 2, y, width, thick);
         } else {
@@ -140,7 +140,7 @@
       for (let i = 0; i < 6; i++) {
         const y = size / 2 - i * (thick + gap) - thick;
         const yang = bin[i] === "1";
-        ctx.fillStyle = "#cfcfcf";
+        ctx.fillStyle = "#d4c4a0";
         if (yang) {
           ctx.fillRect(-width / 2, y, width, thick);
         } else {
@@ -174,7 +174,7 @@
       ctx.fillRect(0, 0, w, h);
 
       // 细网格气场
-      ctx.strokeStyle = "rgba(255,255,255,0.03)";
+      ctx.strokeStyle = "rgba(201,168,108,0.08)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(cx, cy, baguaR, 0, Math.PI * 2);
@@ -210,7 +210,7 @@
       drawTaiji(cx, cy, taijiR, t * 0.15);
 
       // 四正微光
-      ctx.fillStyle = "rgba(255,255,255,0.04)";
+      ctx.fillStyle = "rgba(201,168,108,0.12)";
       ctx.font = `${Math.max(11, minSide * 0.018)}px "Noto Serif SC", serif`;
       ctx.textAlign = "center";
       [
