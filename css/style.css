@@ -1233,3 +1233,114 @@ html.embed .footer { display: none; }
   cursor: wait;
 }
 
+.ky-degree {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 10px;
+}
+.ky-degree button {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink-dim);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.ky-degree button.selected {
+  color: #1a1208;
+  background: linear-gradient(180deg, #f3e6c4, #d4b56a);
+  border-color: var(--gold);
+}
+.ky-cascade {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(140px, 1.1fr) minmax(180px, 1.4fr);
+  gap: 8px;
+  min-height: 280px;
+  margin-bottom: 12px;
+}
+@media (max-width: 720px) {
+  .ky-cascade { grid-template-columns: 1fr; min-height: 0; }
+}
+.ky-col {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: auto;
+  max-height: 340px;
+}
+.ky-col button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid rgba(201, 168, 108, 0.08);
+  background: transparent;
+  color: var(--ink);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.ky-col button:hover { background: rgba(201, 168, 108, 0.08); }
+.ky-col button.selected {
+  background: rgba(201, 168, 108, 0.16);
+  color: var(--accent);
+}
+.ky-second-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(201, 168, 108, 0.08);
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+.ky-second-row code {
+  color: var(--gold);
+  font-size: 0.78rem;
+}
+.ky-basket {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 8px;
+}
+.ky-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.ky-chip button {
+  border: none;
+  background: transparent;
+  color: var(--cinnabar);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
+.ky-fu-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.gua-pair.compact {
+  gap: 16px;
+}
+.gua-pair.compact .gua-viz-card {
+  min-width: 0;
+}
+.followup-card .fu-major,
+.followup-card .fu-q {
+  width: 100%;
+}
+

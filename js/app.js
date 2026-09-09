@@ -613,6 +613,165 @@
 
   /* ---------- 复杂问事 ---------- */
   let selectedScenario = "relocate";
+  let lastComplexOut = null;
+  let complexFollowSession = window.YiSession
+    ? window.YiSession.create("complex")
+    : { count: 0, history: [], locked: false };
+
+  const kyState = {
+    degree: "xueshuo",
+    field: "工学",
+    first: "计算机科学与技术",
+    basket: []
+  };
+
+  function kyCatalog() {
+    return window.KaoyanCatalog;
+  }
+
+  function kyDegreeMeta() {
+    const Cat = kyCatalog();
+    return (Cat.DEGREES || []).find((d) => d.id === kyState.degree) || (Cat.DEGREES || [])[0];
+  }
+
+  function renderKyPicker() {
+    const Cat = kyCatalog();
+    const host = $("#cx-kaoyan-picker");
+    if (!Cat || !host) return;
+    const degBox = $("#ky-degree");
+    const fieldBox = $("#ky-fields");
+    const firstBox = $("#ky-first");
+    const secondBox = $("#ky-second");
+    if (!degBox || !fieldBox || !firstBox || !secondBox) return;
+
+    degBox.innerHTML = Cat.DEGREES.map(
+      (d) =>
+        `<button type="button" class="${d.id === kyState.degree ? "selected" : ""}" data-degree="${d.id}">${d.name}</button>`
+    ).join("");
+
+    const fields = Cat.fieldsOf(kyState.degree);
+    if (!fields.includes(kyState.field)) kyState.field = fields[0];
+    fieldBox.innerHTML = fields
+      .map(
+        (f) =>
+          `<button type="button" class="${f === kyState.field ? "selected" : ""}" data-field="${f}">${f}</button>`
+      )
+      .join("");
+
+    const firsts = Cat.firstOf(kyState.degree, kyState.field);
+    if (!firsts.some((x) => x.name === kyState.first)) {
+      kyState.first = firsts[0] ? firsts[0].name : "";
+    }
+    firstBox.innerHTML = firsts
+      .map(
+        (x) =>
+          `<button type="button" class="${x.name === kyState.first ? "selected" : ""}" data-first="${x.name}">${x.name}<br><code>${x.code}</code></button>`
+      )
+      .join("");
+
+    const disc = firsts.find((x) => x.name === kyState.first) || firsts[0];
+    const qi = Cat.qiFor(kyState.degree, kyState.field, disc);
+    const kids = (disc && disc.kids) || [];
+    secondBox.innerHTML = kids
+      .map((s) => {
+        const on = kyState.basket.some((b) => b.code === s.code);
+        return `<label class="ky-second-row">
+          <input type="checkbox" data-code="${s.code}" data-name="${s.name}" ${on ? "checked" : ""}>
+          <span>${s.name}<br><code>${s.code}</code></span>
+        </label>`;
+      })
+      .join("") || `<p class="hint" style="padding:12px">此一级暂无二级条目。</p>`;
+
+    renderKyBasket();
+    host.dataset.dir = qi.dir || "";
+    host.dataset.wx = qi.wx || "";
+  }
+
+  function renderKyBasket() {
+    const box = $("#ky-basket");
+    if (!box) return;
+    if (!kyState.basket.length) {
+      box.innerHTML = `<span class="hint">尚未勾选细分专业。请在右侧二级学科点选，最多 6 个。</span>`;
+      return;
+    }
+    box.innerHTML = kyState.basket
+      .map(
+        (b, i) =>
+          `<span class="ky-chip">${b.name} <code>${b.code}</code><button type="button" data-rm="${i}" aria-label="移除">×</button></span>`
+      )
+      .join("");
+  }
+
+  function kyToggleSecond(name, code, checked) {
+    const Cat = kyCatalog();
+    const deg = kyDegreeMeta();
+    const firsts = Cat.firstOf(kyState.degree, kyState.field);
+    const disc = firsts.find((x) => x.name === kyState.first) || firsts[0];
+    const qi = Cat.qiFor(kyState.degree, kyState.field, disc);
+    const idx = kyState.basket.findIndex((b) => b.code === code);
+    if (checked) {
+      if (idx >= 0) return;
+      if (kyState.basket.length >= 6) {
+        flashOracle("一次最多比较 6 个细分专业。", "warn");
+        return false;
+      }
+      kyState.basket.push(
+        Cat.toOption({
+          name,
+          code,
+          field: kyState.field,
+          first: kyState.first,
+          degreeName: deg ? deg.name : "",
+          dir: qi.dir,
+          wx: qi.wx
+        })
+      );
+    } else if (idx >= 0) {
+      kyState.basket.splice(idx, 1);
+    }
+    renderKyBasket();
+    return true;
+  }
+
+  function initKyPicker() {
+    const host = $("#cx-kaoyan-picker");
+    if (!host || !kyCatalog()) return;
+    renderKyPicker();
+    host.addEventListener("click", (e) => {
+      const degBtn = e.target.closest("[data-degree]");
+      if (degBtn) {
+        kyState.degree = degBtn.dataset.degree;
+        kyState.field = kyCatalog().fieldsOf(kyState.degree)[0];
+        kyState.first = "";
+        renderKyPicker();
+        return;
+      }
+      const fieldBtn = e.target.closest("[data-field]");
+      if (fieldBtn) {
+        kyState.field = fieldBtn.dataset.field;
+        kyState.first = "";
+        renderKyPicker();
+        return;
+      }
+      const firstBtn = e.target.closest("[data-first]");
+      if (firstBtn) {
+        kyState.first = firstBtn.dataset.first;
+        renderKyPicker();
+        return;
+      }
+      const rm = e.target.closest("[data-rm]");
+      if (rm) {
+        kyState.basket.splice(Number(rm.dataset.rm), 1);
+        renderKyPicker();
+      }
+    });
+    host.addEventListener("change", (e) => {
+      const input = e.target.closest("input[data-code]");
+      if (!input) return;
+      const ok = kyToggleSecond(input.dataset.name, input.dataset.code, input.checked);
+      if (ok === false) input.checked = false;
+    });
+  }
 
   function syncComplexFields() {
     const sc = window.YiComplex.SCENARIOS[selectedScenario];
@@ -622,10 +781,12 @@
 
     $("#cx-custom-wrap").classList.toggle("hidden", !isCustom && !isKaoyan);
     $("#cx-region-wrap").classList.toggle("hidden", isCustom);
+    const picker = $("#cx-kaoyan-picker");
+    if (picker) picker.classList.toggle("hidden", !isKaoyan);
     const regionLabel = $("#cx-region-label");
     const fieldLabel = $("#cx-field-label");
     if (regionLabel) regionLabel.classList.toggle("hidden", !isRelocate);
-    if (fieldLabel) fieldLabel.classList.toggle("hidden", !isKaoyan);
+    if (fieldLabel) fieldLabel.classList.add("hidden");
 
     const legend = $("#cx-filter-legend");
     const hint = $("#cx-filter-hint");
@@ -636,13 +797,14 @@
     const custom = $("#cx-custom");
 
     if (isKaoyan) {
-      if (legend) legend.textContent = "考研缩圈（门类 / 标签）";
-      if (hint) hint.textContent = "留空名单则按门类与标签从专业库缩圈，再逐专业起卦。已有具体专业则填名单。";
-      if (customLegend) customLegend.textContent = "已有具体专业（可选，2–6 个）";
-      if (customHint) customHint.textContent = "例：水利工程, 环境科学与工程, 土木工程。填了则只占这些。";
+      if (legend) legend.textContent = "考研缩圈（标签 / 上限）";
+      if (hint) hint.textContent = "下方按研招网层级勾选二级学科。已勾选则只占勾选项；也可再填名单。";
+      if (customLegend) customLegend.textContent = "或手写专业（可选，2–6 个）";
+      if (customHint) customHint.textContent = "未勾选目录时，可用手写名单。勾选了目录则以勾选为准。";
       if (goal) goal.placeholder = "如：就业 / 读博 / 考公";
       if (tag) tag.placeholder = "如：就业、专硕、跨考、工程";
-      if (custom) custom.placeholder = "水利工程, 环境科学与工程, 土木工程";
+      if (custom) custom.placeholder = "水利水电工程, 水工结构工程";
+      renderKyPicker();
     } else if (isRelocate) {
       if (legend) legend.textContent = "迁居范围 / 缩圈";
       if (hint) hint.textContent = "北坎、东震、南离、西兑。标签用于缩圈，正断仍逐案起卦。";
@@ -696,6 +858,7 @@
 
     renderScenarioGrid();
     fillComplexNow();
+    initKyPicker();
     syncComplexFields();
 
     $("#complex-scenario-grid").addEventListener("click", (e) => {
@@ -714,8 +877,14 @@
       $("#complex-bazi").innerHTML = "";
       $("#complex-result").innerHTML = "";
       selectedScenario = "relocate";
+      kyState.basket = [];
+      lastComplexOut = null;
+      complexFollowSession = window.YiSession
+        ? window.YiSession.create("complex")
+        : { count: 0, history: [], locked: false };
       renderScenarioGrid();
       fillComplexNow();
+      renderKyPicker();
       syncComplexFields();
     });
 
@@ -754,16 +923,26 @@
         field: ($("#cx-field") && $("#cx-field").value) || "all",
         focusTag: $("#cx-tag").value.trim(),
         maxCandidates: parseInt($("#cx-max").value, 10) || 5,
-        customText: $("#cx-custom").value
+        customText: $("#cx-custom").value,
+        pickedMajors: selectedScenario === "kaoyan" ? kyState.basket.slice() : []
       };
 
       if (sc.id === "kaoyan") {
-        const n = String(form.customText || "")
+        const nHand = String(form.customText || "")
           .split(/[,，、\n]/)
           .map((s) => s.trim())
           .filter(Boolean).length;
-        if (n === 1) {
-          alert("名单请至少填写 2 个具体专业，或留空、改用门类缩圈。");
+        const nPick = form.pickedMajors.length;
+        if (nPick === 1) {
+          flashOracle("请再勾选至少一个细分专业（共 2–6 个），或清空勾选改用手写名单。", "warn");
+          return;
+        }
+        if (nPick === 0 && nHand === 1) {
+          flashOracle("名单请至少填写 2 个具体专业，或在目录中勾选二级学科。", "warn");
+          return;
+        }
+        if (nPick === 0 && nHand === 0) {
+          flashOracle("请先在目录勾选 2–6 个二级学科，或手写专业名单。", "warn");
           return;
         }
       }
@@ -771,6 +950,21 @@
       Viz.playRitual(() => {
         try {
           const out = Cx.compareComplex(selectedScenario, form);
+          out.form = form;
+          out.followReads = [];
+          out.fuKind = "gongming";
+          out.fuMajorKey = out.top && out.top.option ? optionKey(out.top.option) : "";
+          lastComplexOut = out;
+          complexFollowSession = window.YiSession
+            ? window.YiSession.create("complex")
+            : { count: 0, history: [], locked: false };
+          if (window.YiSession) {
+            window.YiSession.ask(
+              complexFollowSession,
+              (out.scenario && out.scenario.name) + "：" + (out.ranked || []).map((r) => majorLabel(r.option)).join("、"),
+              out.scenario.eventId || "exam"
+            );
+          }
           renderComplexBazi(out.chart);
           renderComplexResult(out);
         } catch (err) {
@@ -801,6 +995,271 @@
       </div>`;
   }
 
+  function optionKey(opt) {
+    return (opt && (opt.code || opt.id || opt.name)) || "";
+  }
+
+  function majorBareName(opt) {
+    if (!opt) return "";
+    const code = opt.code || "";
+    let name = String(opt.name || "");
+    if (code) name = name.replace(new RegExp("\\s*" + code + "\\s*$"), "").trim();
+    return name || String(opt.name || "");
+  }
+
+  function majorLabel(opt) {
+    if (!opt) return "";
+    const name = majorBareName(opt);
+    return opt.code ? name + "（" + opt.code + "）" : name;
+  }
+
+  function majorCodeName(opt) {
+    if (!opt) return "";
+    const name = majorBareName(opt);
+    return opt.code ? opt.code + " " + name : name;
+  }
+
+  const KY_FOLLOW_KINDS = [
+    {
+      id: "gongming",
+      label: "本专业功名",
+      fill: (opt) => `考研「${majorCodeName(opt)}」就此时功名录取而言是否有利`
+    },
+    {
+      id: "school",
+      label: "某校该专业",
+      fill: (opt) => `考研报考××大学「${majorCodeName(opt)}」是否有利`
+    },
+    {
+      id: "kuakao",
+      label: "跨考此专业",
+      fill: (opt) => `跨考「${majorCodeName(opt)}」就此时是否有利`
+    },
+    {
+      id: "job",
+      label: "就业出路",
+      fill: (opt) => `攻读「${majorCodeName(opt)}」后就业出路是否有利`
+    },
+    {
+      id: "mentor",
+      label: "导师方向",
+      fill: (opt) => `选择「${majorCodeName(opt)}」跟随某导师是否相宜`
+    }
+  ];
+
+  function findRankedOption(out, key) {
+    const rows = (out && out.ranked) || [];
+    return (rows.find((r) => optionKey(r.option) === key) || rows[0] || {}).option;
+  }
+
+  function fillKyFollowQuestion(out) {
+    const kind = KY_FOLLOW_KINDS.find((k) => k.id === (out.fuKind || "gongming")) || KY_FOLLOW_KINDS[0];
+    const opt = findRankedOption(out, out.fuMajorKey);
+    return kind.fill(opt);
+  }
+
+  function renderComplexFollowReads(out) {
+    const reads = out.followReads || [];
+    if (!reads.length) return "";
+    return reads
+      .map((item, idx) => {
+        const r = item.result;
+        const ty = r.tiYong;
+        const cl = r.classical;
+        const loc =
+          window.YiOracleText && r.bengua
+            ? window.YiOracleText.getLocalOracle(r.bengua, out.scenario.eventId || "exam", {
+                place: majorBareName(item.option),
+                direction: item.option.dir
+              })
+            : null;
+        return `
+        <div class="result-card cx-follow-gua">
+          <h3>${item.label} · ${majorLabel(item.option)}</h3>
+          <p class="verdict-sub">所问：${item.question}</p>
+          <div class="gua-pair compact">
+            <div class="gua-viz-card">
+              <div class="cx-fu-ben" data-fu="${idx}"></div>
+              <div class="name">本卦 · ${r.bengua ? r.bengua.name : "?"}</div>
+            </div>
+            <div class="gua-viz-card">
+              <div class="cx-fu-bian" data-fu="${idx}"></div>
+              <div class="name">之卦 · ${r.biangua ? r.biangua.name : "?"}</div>
+            </div>
+          </div>
+          <div class="text-block">
+            <h4>体用</h4>
+            <p>体 ${ty.tiName}（${ty.ti}）· 用 ${ty.yongName}（${ty.yong}）→ ${ty.relation}。${ty.luck.text}</p>
+          </div>
+          <div class="text-block">
+            <h4>玩辞</h4>
+            <p>${cl ? cl.rule : ""}</p>
+            <p>${cl && cl.primaryText ? "主断辞：" + cl.primaryText : ""}</p>
+          </div>
+          ${loc && loc.eventText ? `<div class="text-block"><h4>因地制宜</h4><p>${loc.eventText}</p></div>` : ""}
+          <p class="hint">再筮只为澄清初象，不可推翻比较名次。</p>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function renderKaoyanFollowCard(out, session) {
+    if (!out || !out.scenario || out.scenario.id !== "kaoyan") return "";
+    if (!session || session.count < 1) return "";
+    const hist = `<ol class="followup-history">${session.history
+      .map((q, i) => `<li>${i === 0 ? "初筮" : i === 1 ? "再筮" : "三筮"}：${q}</li>`)
+      .join("")}</ol>`;
+    if (session.locked || session.count >= 3) {
+      return `
+        <div class="result-card followup-card locked">
+          <h3>渎则不告</h3>
+          <p>《蒙》：初筮告，再三渎，渎则不告。此事三筮已终，宜玩已得之象，勿再占。</p>
+          ${renderAskDots(session)}
+          ${hist}
+        </div>`;
+    }
+    const nextLabel = session.count === 1 ? "再筮" : "三筮（末）";
+    const selectedKey = out.fuMajorKey || optionKey((out.top && out.top.option) || {});
+    const options = (out.ranked || [])
+      .map(
+        (row) =>
+          `<option value="${optionKey(row.option)}" ${
+            optionKey(row.option) === selectedKey ? "selected" : ""
+          }>${majorLabel(row.option)}</option>`
+      )
+      .join("");
+    const kinds = KY_FOLLOW_KINDS.map(
+      (k) =>
+        `<button type="button" class="chip-btn ${(out.fuKind || "gongming") === k.id ? "selected" : ""}" data-fu-kind="${k.id}">${k.label}</button>`
+    ).join("");
+    return `
+      <div class="result-card followup-card" id="complex-followup">
+        <h3>就某一细分专业追问 · ${nextLabel} <span class="session-label">事不过三</span></h3>
+        <p>比较已立。若象未明，可就<strong>同一批专业中的一个</strong>再问一层（某校、跨考、就业、导师）。再筮只为澄清，不可推翻初象。</p>
+        ${renderAskDots(session)}
+        ${hist}
+        <label class="q-label">选定细分专业
+          <select class="fu-major">${options}</select>
+        </label>
+        <div class="ky-fu-kinds">${kinds}</div>
+        <label class="sincerity">
+          <input type="checkbox" class="fu-same">
+          <span>此问仍属「${session.rootQuestion}」同一件事，不为另换专业库或另立新问。</span>
+        </label>
+        <label class="q-label">追问（换一层问法；选「某校」时请把××改成院校名）
+          <input type="text" class="fu-q" placeholder="例：考研报考清华大学「081203 计算机应用技术」是否有利">
+        </label>
+        <div class="cast-actions">
+          <button type="button" class="btn primary fu-go">${nextLabel}</button>
+          <button type="button" class="btn ghost fu-seal">了结此事</button>
+        </div>
+      </div>`;
+  }
+
+  function paintComplexFollowGua(mount, out) {
+    (out.followReads || []).forEach((item, idx) => {
+      const r = item.result;
+      const movingSet = new Set((r.moving || []).map((m) => m - 1));
+      const ben = mount.querySelector(`.cx-fu-ben[data-fu="${idx}"]`);
+      const bian = mount.querySelector(`.cx-fu-bian[data-fu="${idx}"]`);
+      if (ben && r.lines) Viz.renderHexagramSVG(ben, r.lines, { movingSet, width: 110, height: 140 });
+      if (bian && r.bianguaBinary) {
+        Viz.renderHexagramSVG(bian, Yi.binaryToLines(r.bianguaBinary), {
+          movingSet: new Set(),
+          width: 110,
+          height: 140,
+          color: "#9a9a9a"
+        });
+      }
+    });
+  }
+
+  function bindComplexFollowUp(mount, out) {
+    const box = mount.querySelector(".followup-card");
+    if (!box) return;
+    const qInput = box.querySelector(".fu-q");
+    if (qInput && !qInput.value) qInput.value = fillKyFollowQuestion(out);
+    const majorSel = box.querySelector(".fu-major");
+    if (majorSel) {
+      majorSel.onchange = () => {
+        out.fuMajorKey = majorSel.value;
+        if (qInput) qInput.value = fillKyFollowQuestion(out);
+      };
+    }
+    box.querySelectorAll("[data-fu-kind]").forEach((btn) => {
+      btn.onclick = () => {
+        out.fuKind = btn.dataset.fuKind;
+        box.querySelectorAll("[data-fu-kind]").forEach((b) =>
+          b.classList.toggle("selected", b === btn)
+        );
+        if (qInput) qInput.value = fillKyFollowQuestion(out);
+      };
+    });
+    const sealBtn = box.querySelector(".fu-seal");
+    if (sealBtn) {
+      sealBtn.onclick = () => {
+        if (window.YiSession) window.YiSession.seal(complexFollowSession);
+        renderComplexResult(out);
+      };
+    }
+    const goBtn = box.querySelector(".fu-go");
+    if (goBtn) {
+      goBtn.onclick = () => {
+        const q = ((qInput && qInput.value) || "").trim();
+        const same = !!(box.querySelector(".fu-same") && box.querySelector(".fu-same").checked);
+        const opt = findRankedOption(out, (majorSel && majorSel.value) || out.fuMajorKey);
+        runKaoyanFollowUp(q, opt, same);
+      };
+    }
+  }
+
+  function runKaoyanFollowUp(question, option, sameMatter) {
+    if (!lastComplexOut || !lastComplexOut.form) {
+      flashOracle("请先完成细分专业比较。", "warn");
+      return;
+    }
+    if (!question) {
+      flashOracle("请写下追问。问事宜专一明确。", "warn");
+      return;
+    }
+    if (!option) {
+      flashOracle("请选定一个细分专业。", "warn");
+      return;
+    }
+    const gate = window.YiSession
+      ? window.YiSession.ask(complexFollowSession, question, lastComplexOut.scenario.eventId || "exam", {
+          sameMatterConfirmed: sameMatter
+        })
+      : { ok: true, label: "再筮" };
+    if (!gate.ok) {
+      flashOracle(gate.message, "warn");
+      return;
+    }
+    const form = lastComplexOut.form;
+    const result = Yi.divinate("meihua_person", lastComplexOut.scenario.eventId || "exam", {
+      year: form.year,
+      month: form.month,
+      day: form.day,
+      hour: form.hour,
+      personName: form.personName,
+      personAge: form.personAge,
+      otherName: majorBareName(option),
+      question,
+      direction: option.dir || "",
+      place: majorBareName(option),
+      askLabel: gate.label,
+      askIndex: gate.index
+    });
+    lastComplexOut.followReads = lastComplexOut.followReads || [];
+    lastComplexOut.followReads.push({
+      question,
+      result,
+      label: gate.label,
+      option
+    });
+    renderComplexResult(lastComplexOut);
+  }
+
   function renderComplexResult(out) {
     const mount = $("#complex-result");
     const top = out.top;
@@ -809,18 +1268,22 @@
         const r = row.result;
         const ty = r.tiYong;
         const cl = r.classical;
+        const codeChip = row.option.code ? `<span class="chip">${row.option.code}</span>` : "";
+        const fieldBits = [row.option.degree, row.option.field, row.option.first].filter(Boolean);
         return `
         <div class="rank-card ${row.rank === 1 ? "top" : ""}">
           <div class="rank-head">
-            <div class="rank-title">第 ${row.rank} · ${row.option.name}
+            <div class="rank-title">第 ${row.rank} · ${majorLabel(row.option)}
               <span class="tag">${row.verdict}</span>
             </div>
             <div class="rank-score">综合 ${row.finalScore}（卦 ${row.guaScore}）</div>
           </div>
           <div class="rank-meta">
+            ${fieldBits.length ? fieldBits.join(" · ") + " · " : ""}
             ${(row.option.region ? row.option.region + " · " : "")}${row.option.dir || ""}${row.option.wx ? " · " + row.option.wx : ""}
             ${(row.option.tags || []).length ? " · " + row.option.tags.join("/") : ""}
           </div>
+          <div class="chips" style="margin-top:8px">${codeChip}</div>
           <p class="verdict-sub">所问：${row.question}</p>
           <div class="text-block">
             <h4>本卦 → 之卦</h4>
@@ -840,7 +1303,7 @@
             window.YiOracleText && r.bengua
               ? `<div class="text-block"><h4>因地制宜</h4><p>${
                   (window.YiOracleText.getLocalOracle(r.bengua, out.scenario.eventId || "decision", {
-                    place: row.option.name,
+                    place: majorBareName(row.option),
                     direction: row.option.dir
                   }) || {}).eventText || ""
                 }</p></div>`
@@ -857,7 +1320,7 @@
         <p class="verdict-sub">起卦天时：${out.castTime}</p>
         ${
           top
-            ? `<p class="verdict-title" style="font-size:1.6rem;margin-top:10px">首选倾向：${top.option.name}</p>`
+            ? `<p class="verdict-title" style="font-size:1.6rem;margin-top:10px">首选倾向：${majorLabel(top.option)}</p>`
             : ""
         }
         <p class="hint">${out.caution}</p>
@@ -866,7 +1329,11 @@
         </div>
       </div>
       <div class="rank-list">${cards}</div>
+      ${renderComplexFollowReads(out)}
+      ${renderKaoyanFollowCard(out, complexFollowSession)}
     `;
+    paintComplexFollowGua(mount, out);
+    bindComplexFollowUp(mount, out);
     mount.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -901,7 +1368,7 @@
         topic: "kaoyan",
         eventId: "exam",
         title: "一卦点不尽天下专业",
-        body: "「考研考哪个专业」须先缩圈。请到复杂问事用「考研择专」：按门类筛选，或写下 2–6 个具体专业，再逐个起卦。"
+        body: "「考研考哪个专业」须先缩圈。请到复杂问事用「考研择专」：按学位类型→门类→一级→二级勾选 2–6 个细分专业，再逐个起卦。"
       };
     }
 

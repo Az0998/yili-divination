@@ -149,15 +149,15 @@
       id: "kaoyan",
       name: "考研择专",
       icon: "✎",
-      desc: "问「考哪个具体专业」：先按门类或你的名单缩圈，再对每一专业单独起卦。",
+      desc: "问「考哪个具体专业」：按研招网层级勾到二级学科，再对每一专业单独起卦。",
       eventId: "exam",
       optionSource: "kaoyan",
       questionTpl: (opt, goal) =>
-        `我考研攻读「${opt.name}」${goal ? "，目标侧重" + goal : ""}，就此时功名与出路而言是否有利？`,
+        `我考研攻读「${opt.name}」${opt.code ? "（" + opt.code + "）" : ""}${goal ? "，目标侧重" + goal : ""}，就此时功名与出路而言是否有利？`,
       tips: [
-        "一专业一占，不可一卦点尽天下专业。",
-        "已有 2–6 个具体专业，填入名单则只占这些。",
-        "录取分数、导师、就业为人谋，象数只助决疑。"
+        "依研招网层级选到二级学科（含代码），一专业一占。",
+        "勾选 2–6 个细分专业再起卦；比较后可就其一追问，事不过三。",
+        "录取分数、导师、院校为人谋，象数只助决疑。"
       ]
     },
     partner: {
@@ -245,8 +245,13 @@
     if (!sc) throw new Error("未知场景");
 
     const customPool = parseCustomOptions(opts.customText);
+    const picked = Array.isArray(opts.pickedMajors) ? opts.pickedMajors.filter(Boolean) : [];
+    const userPickedKaoyan =
+      scenarioId === "kaoyan" && (picked.length >= 2 || customPool.length >= 2);
     let pool;
-    if (sc.optionSource === "custom") {
+    if (picked.length >= 2) {
+      pool = picked;
+    } else if (sc.optionSource === "custom") {
       pool = customPool;
     } else if (sc.optionSource === "kaoyan" && customPool.length >= 2) {
       pool = customPool;
@@ -261,14 +266,14 @@
       pool = pool.filter((c) => c.region === opts.region);
     }
 
-    // 考研门类
-    if (scenarioId === "kaoyan" && customPool.length < 2 && opts.field && opts.field !== "all") {
+    // 考研门类：仅未勾选/未手写具体专业时，才从库中按门类缩圈
+    if (scenarioId === "kaoyan" && !userPickedKaoyan && opts.field && opts.field !== "all") {
       const byField = pool.filter((m) => m.field === opts.field);
       if (byField.length >= 2) pool = byField;
     }
 
-    // 行业关键词（城市）
-    if (opts.focusTag) {
+    // 行业关键词（城市 / 库内缩圈）；已立之细分专业不再被标签筛掉
+    if (opts.focusTag && !userPickedKaoyan) {
       const tagged = pool.filter((c) => (c.tags || []).some((t) => t.includes(opts.focusTag) || opts.focusTag.includes(t)));
       if (tagged.length >= 2) pool = tagged;
     }
@@ -282,8 +287,7 @@
       }
     }
 
-    // 八字喜用缩圈（自填名单不再筛掉，以免把已立之专业滤没）
-    const userPickedKaoyan = scenarioId === "kaoyan" && customPool.length >= 2;
+    // 八字喜用缩圈（自填/勾选名单不再筛掉，以免把已立之专业滤没）
     if (chart && sc.optionSource !== "custom" && !userPickedKaoyan) {
       const scored = pool.map((o) => {
         const dir = o.dirAlias || o.dir;
@@ -296,7 +300,7 @@
       const positive = scored.filter((x) => x.s >= 0).map((x) => x.o);
       const top = (positive.length >= 3 ? positive : scored.map((x) => x.o)).slice(0, opts.maxCandidates || 5);
       pool = top;
-    } else {
+    } else if (!userPickedKaoyan) {
       pool = pool.slice(0, opts.maxCandidates || 5);
     }
 
