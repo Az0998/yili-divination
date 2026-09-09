@@ -232,7 +232,7 @@
               <div class="form-grid">
                 <label>姓名<input type="text" id="cx-name" placeholder="必填，入梅花" required></label>
                 <label>年龄<input type="number" id="cx-age" min="1" max="120" placeholder="可选"></label>
-                <label>目标侧重<input type="text" id="cx-goal" placeholder="如：事业 / 宜居 / 留学"></label>
+                <label>目标侧重<input type="text" id="cx-goal" placeholder="如：就业 / 读博 / 考公"></label>
               </div>
             </fieldset>
             <fieldset>
@@ -255,17 +255,28 @@
               <button type="button" class="btn ghost sm" id="cx-fill-now">取当下</button>
             </fieldset>
             <fieldset id="cx-region-wrap">
-              <legend>迁居范围 / 缩圈</legend>
+              <legend id="cx-filter-legend">迁居范围 / 缩圈</legend>
               <div class="form-grid">
-                <label>区域
+                <label id="cx-region-label">区域
                   <select id="cx-region">
                     <option value="all">国内外综合</option>
                     <option value="国内">仅国内</option>
                     <option value="海外">仅海外</option>
                   </select>
                 </label>
+                <label id="cx-field-label" class="hidden">门类
+                  <select id="cx-field">
+                    <option value="all">不限门类</option>
+                    <option value="工学">工学</option>
+                    <option value="理学">理学</option>
+                    <option value="经管">经管</option>
+                    <option value="法学">法学</option>
+                    <option value="文学教育">文学 / 教育</option>
+                    <option value="医学">医学</option>
+                  </select>
+                </label>
                 <label>关注标签
-                  <input type="text" id="cx-tag" placeholder="如：科技、金融、宜居">
+                  <input type="text" id="cx-tag" placeholder="如：就业、专硕、跨考、工程">
                 </label>
                 <label>候选上限
                   <select id="cx-max">
@@ -275,12 +286,14 @@
                   </select>
                 </label>
               </div>
+              <p class="hint" id="cx-filter-hint">北坎、东震、南离、西兑。标签用于缩圈，正断仍逐案起卦。</p>
             </fieldset>
             <fieldset id="cx-custom-wrap" class="hidden">
-              <legend>自定义候选（逗号或换行，最多 6 个）</legend>
+              <legend id="cx-custom-legend">自定义候选（逗号或换行，最多 6 个）</legend>
               <label class="q-label">名单
-                <textarea id="cx-custom" rows="3" placeholder="例：甲方案, 乙方案, 丙方案"></textarea>
+                <textarea id="cx-custom" rows="3" placeholder="例：水利工程, 环境科学与工程, 土木工程"></textarea>
               </label>
+              <p class="hint" id="cx-custom-hint">填写后只占名单中的专业；留空则按门类从库中缩圈。</p>
             </fieldset>
             <label class="sincerity">
               <input type="checkbox" id="cx-sincerity">
@@ -357,12 +370,13 @@
           <h3>事类取法</h3>
           <p>六爻宜人事细断；时间梅花感天时；人物梅花合姓名年龄；方位梅花配先天八方；报数触机。</p>
           <h3>复杂问事（漏斗筮法）</h3>
-          <p>迁居、赛道、升学、合作、姻缘比较、投资取向、多方案等，皆不可一卦尽断。</p>
+          <p>迁居、赛道、升学、考研择专、合作、姻缘比较、投资取向、多方案等，皆不可一卦尽断。</p>
           <ul>
             <li>立界：明确目标与约束</li>
             <li>缩圈：八字简盘喜用 + 先天方位/五行，筛 3–6 候选</li>
             <li>正断：对每一候选<strong>单独</strong>起卦（一事一占）</li>
             <li>排序：以体用生克与朱熹动爻玩辞为主，命理缩圈为辅</li>
+            <li>考研择专：按门类或自填 2–6 个具体专业缩圈，再一专业一占</li>
           </ul>
           <h3>韦特塔罗规范</h3>
           <p>本站西占用 Rider–Waite–Smith 七十八张，含大阿尔克那二十二、小牌与宫廷。洗牌后依牌阵位置读正逆位。单张与三张宜日常；二选一、关系六张、马蹄七张、凯尔特十字宜大事。塔罗言心理与象征故事，易卦言时位与体用；同题对照时，同向则信，相悖则事体未明，宜止占。</p>

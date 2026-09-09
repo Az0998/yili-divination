@@ -68,6 +68,38 @@
     { id: "biz", name: "工商管理", dir: "西南", wx: "土", tags: ["综合"] }
   ];
 
+  /** 考研具体专业：门类 + 学硕/专硕标签，供缩圈后逐专业起卦 */
+  const KAOYAN = [
+    { id: "cs", name: "计算机科学与技术", field: "工学", dir: "南", wx: "火", tags: ["就业", "热", "数学", "学硕"] },
+    { id: "se", name: "软件工程", field: "工学", dir: "南", wx: "火", tags: ["就业", "专硕"] },
+    { id: "ai", name: "人工智能", field: "工学", dir: "南", wx: "火", tags: ["热", "交叉", "就业"] },
+    { id: "ee", name: "电子信息", field: "工学", dir: "南", wx: "火", tags: ["就业", "通信"] },
+    { id: "power", name: "电气工程", field: "工学", dir: "南", wx: "火", tags: ["就业", "工程"] },
+    { id: "ctrl", name: "控制科学与工程", field: "工学", dir: "南", wx: "火", tags: ["工科", "就业"] },
+    { id: "me", name: "机械工程", field: "工学", dir: "西", wx: "金", tags: ["实业", "工程"] },
+    { id: "hydro", name: "水利工程", field: "工学", dir: "北", wx: "水", tags: ["工程", "稳定", "土木"] },
+    { id: "civil", name: "土木工程", field: "工学", dir: "西南", wx: "土", tags: ["工程", "土木"] },
+    { id: "env", name: "环境科学与工程", field: "工学", dir: "北", wx: "水", tags: ["工程", "公"] },
+    { id: "arch", name: "建筑学", field: "工学", dir: "西南", wx: "土", tags: ["设计", "长学制"] },
+    { id: "math", name: "数学", field: "理学", dir: "北", wx: "水", tags: ["深造", "数学", "学硕"] },
+    { id: "stat", name: "应用统计", field: "理学", dir: "西", wx: "金", tags: ["就业", "专硕", "数学"] },
+    { id: "phy", name: "物理学", field: "理学", dir: "北", wx: "水", tags: ["深造", "学硕"] },
+    { id: "fin", name: "金融学", field: "经管", dir: "西", wx: "金", tags: ["就业", "热", "学硕"] },
+    { id: "mf", name: "金融专硕", field: "经管", dir: "西", wx: "金", tags: ["专硕", "就业", "热"] },
+    { id: "mpacc", name: "会计专硕", field: "经管", dir: "西", wx: "金", tags: ["专硕", "考公"] },
+    { id: "econ", name: "应用经济", field: "经管", dir: "西", wx: "金", tags: ["商科", "学硕"] },
+    { id: "mpa", name: "公共管理", field: "经管", dir: "北", wx: "水", tags: ["考公", "专硕"] },
+    { id: "law_j", name: "法律（法学）", field: "法学", dir: "西", wx: "金", tags: ["规则", "学硕"] },
+    { id: "law_f", name: "法律（非法学）", field: "法学", dir: "西", wx: "金", tags: ["跨考", "专硕"] },
+    { id: "news", name: "新闻与传播", field: "文学教育", dir: "南", wx: "火", tags: ["表达", "专硕"] },
+    { id: "mti", name: "翻译硕士", field: "文学教育", dir: "东南", wx: "木", tags: ["外语", "专硕"] },
+    { id: "edu", name: "教育学", field: "文学教育", dir: "东", wx: "木", tags: ["稳定", "学硕"] },
+    { id: "psy", name: "心理学", field: "文学教育", dir: "东", wx: "木", tags: ["咨询", "学硕"] },
+    { id: "clin", name: "临床医学", field: "医学", dir: "东", wx: "木", tags: ["长学制", "学硕"] },
+    { id: "ph", name: "公共卫生", field: "医学", dir: "东", wx: "木", tags: ["公卫", "专硕"] },
+    { id: "pharm", name: "药学", field: "医学", dir: "东", wx: "木", tags: ["实验", "学硕"] }
+  ];
+
   const INVEST = [
     { id: "save", name: "稳健储蓄/国债", dir: "北", wx: "水", tags: ["防守"] },
     { id: "index", name: "宽基指数定投", dir: "东", wx: "木", tags: ["长线"] },
@@ -107,11 +139,26 @@
       id: "school",
       name: "升学择途",
       icon: "✎",
-      desc: "专业/路径对比，离巽主文书，仍须一事一占。",
+      desc: "本科大类/路径对比。考研要问到具体专业，请用「考研择专」。",
       eventId: "exam",
       optionSource: "schools",
       questionTpl: (opt) => `我攻读或从事「${opt.name}」方向，是否有利？`,
-      tips: ["填志愿前逐项占", "勿因一卦改全部志愿"]
+      tips: ["大类对比用此条", "考研具体专业请改用考研择专"]
+    },
+    kaoyan: {
+      id: "kaoyan",
+      name: "考研择专",
+      icon: "✎",
+      desc: "问「考哪个具体专业」：先按门类或你的名单缩圈，再对每一专业单独起卦。",
+      eventId: "exam",
+      optionSource: "kaoyan",
+      questionTpl: (opt, goal) =>
+        `我考研攻读「${opt.name}」${goal ? "，目标侧重" + goal : ""}，就此时功名与出路而言是否有利？`,
+      tips: [
+        "一专业一占，不可一卦点尽天下专业。",
+        "已有 2–6 个具体专业，填入名单则只占这些。",
+        "录取分数、导师、就业为人谋，象数只助决疑。"
+      ]
     },
     partner: {
       id: "partner",
@@ -166,6 +213,8 @@
         return CAREERS;
       case "schools":
         return SCHOOLS;
+      case "kaoyan":
+        return KAOYAN;
       case "invest":
         return INVEST;
       default:
@@ -195,16 +244,27 @@
     const sc = SCENARIOS[scenarioId];
     if (!sc) throw new Error("未知场景");
 
-    let pool =
-      sc.optionSource === "custom"
-        ? parseCustomOptions(opts.customText)
-        : getLibrary(sc.optionSource).slice();
+    const customPool = parseCustomOptions(opts.customText);
+    let pool;
+    if (sc.optionSource === "custom") {
+      pool = customPool;
+    } else if (sc.optionSource === "kaoyan" && customPool.length >= 2) {
+      pool = customPool;
+    } else {
+      pool = getLibrary(sc.optionSource).slice();
+    }
 
     if (!pool.length) throw new Error("请至少提供 2 个候选");
 
     // 区域过滤（仅城市）
     if (scenarioId === "relocate" && opts.region && opts.region !== "all") {
       pool = pool.filter((c) => c.region === opts.region);
+    }
+
+    // 考研门类
+    if (scenarioId === "kaoyan" && customPool.length < 2 && opts.field && opts.field !== "all") {
+      const byField = pool.filter((m) => m.field === opts.field);
+      if (byField.length >= 2) pool = byField;
     }
 
     // 行业关键词（城市）
@@ -222,8 +282,9 @@
       }
     }
 
-    // 八字喜用缩圈
-    if (chart && sc.optionSource !== "custom") {
+    // 八字喜用缩圈（自填名单不再筛掉，以免把已立之专业滤没）
+    const userPickedKaoyan = scenarioId === "kaoyan" && customPool.length >= 2;
+    if (chart && sc.optionSource !== "custom" && !userPickedKaoyan) {
       const scored = pool.map((o) => {
         const dir = o.dirAlias || o.dir;
         let s = 0;
@@ -344,6 +405,7 @@
     CITIES,
     CAREERS,
     SCHOOLS,
+    KAOYAN,
     INVEST,
     getLibrary,
     shortlist,

@@ -479,6 +479,13 @@
       alert(err);
       return;
     }
+    const wide = analyzeQuestion(ctx.question);
+    if (wide && wide.status === "too_wide" && (wide.topic === "kaoyan" || wide.topic === "city")) {
+      flashOracle(wide.body || "此问过宽，请改用复杂问事逐案起卦。", "warn");
+      if (wide.topic === "kaoyan") openComplexScenario("kaoyan");
+      else openComplexScenario("relocate");
+      return;
+    }
     const gate = window.YiSession.ask(yiSession, ctx.question, selectedEvent);
     if (!gate.ok) {
       alert(gate.message);
@@ -610,12 +617,47 @@
   function syncComplexFields() {
     const sc = window.YiComplex.SCENARIOS[selectedScenario];
     const isCustom = sc.optionSource === "custom";
-    $("#cx-custom-wrap").classList.toggle("hidden", !isCustom);
-    // 迁居显示区域；自定义名单隐藏缩圈区；其余保留标签/上限
-    if (isCustom) {
-      $("#cx-region-wrap").classList.add("hidden");
+    const isKaoyan = sc.id === "kaoyan";
+    const isRelocate = sc.id === "relocate";
+
+    $("#cx-custom-wrap").classList.toggle("hidden", !isCustom && !isKaoyan);
+    $("#cx-region-wrap").classList.toggle("hidden", isCustom);
+    const regionLabel = $("#cx-region-label");
+    const fieldLabel = $("#cx-field-label");
+    if (regionLabel) regionLabel.classList.toggle("hidden", !isRelocate);
+    if (fieldLabel) fieldLabel.classList.toggle("hidden", !isKaoyan);
+
+    const legend = $("#cx-filter-legend");
+    const hint = $("#cx-filter-hint");
+    const customLegend = $("#cx-custom-legend");
+    const customHint = $("#cx-custom-hint");
+    const goal = $("#cx-goal");
+    const tag = $("#cx-tag");
+    const custom = $("#cx-custom");
+
+    if (isKaoyan) {
+      if (legend) legend.textContent = "考研缩圈（门类 / 标签）";
+      if (hint) hint.textContent = "留空名单则按门类与标签从专业库缩圈，再逐专业起卦。已有具体专业则填名单。";
+      if (customLegend) customLegend.textContent = "已有具体专业（可选，2–6 个）";
+      if (customHint) customHint.textContent = "例：水利工程, 环境科学与工程, 土木工程。填了则只占这些。";
+      if (goal) goal.placeholder = "如：就业 / 读博 / 考公";
+      if (tag) tag.placeholder = "如：就业、专硕、跨考、工程";
+      if (custom) custom.placeholder = "水利工程, 环境科学与工程, 土木工程";
+    } else if (isRelocate) {
+      if (legend) legend.textContent = "迁居范围 / 缩圈";
+      if (hint) hint.textContent = "北坎、东震、南离、西兑。标签用于缩圈，正断仍逐案起卦。";
+      if (goal) goal.placeholder = "如：事业 / 宜居 / 留学";
+      if (tag) tag.placeholder = "如：科技、金融、宜居";
+    } else if (isCustom) {
+      if (customLegend) customLegend.textContent = "自定义候选（逗号或换行，最多 6 个）";
+      if (customHint) customHint.textContent = "至少 2 个名称。";
+      if (goal) goal.placeholder = "如：事业 / 合作";
+      if (custom) custom.placeholder = "例：甲方案, 乙方案, 丙方案";
     } else {
-      $("#cx-region-wrap").classList.remove("hidden");
+      if (legend) legend.textContent = "缩圈";
+      if (hint) hint.textContent = "标签与八字喜用只用于筛候选；每一项仍单独起卦。";
+      if (goal) goal.placeholder = "如：事业 / 升学";
+      if (tag) tag.placeholder = "如：就业、稳定";
     }
   }
 
@@ -709,10 +751,22 @@
         day: $("#cx-d").value,
         hour: $("#cx-h").value,
         region: $("#cx-region").value,
+        field: ($("#cx-field") && $("#cx-field").value) || "all",
         focusTag: $("#cx-tag").value.trim(),
         maxCandidates: parseInt($("#cx-max").value, 10) || 5,
         customText: $("#cx-custom").value
       };
+
+      if (sc.id === "kaoyan") {
+        const n = String(form.customText || "")
+          .split(/[,，、\n]/)
+          .map((s) => s.trim())
+          .filter(Boolean).length;
+        if (n === 1) {
+          alert("名单请至少填写 2 个具体专业，或留空、改用门类缩圈。");
+          return;
+        }
+      }
 
       Viz.playRitual(() => {
         try {
@@ -823,7 +877,7 @@
     if (/财|钱|投资|买卖|生意/.test(text)) return "wealth";
     if (/病|身体|健康|愈/.test(text)) return "health";
     if (/讼|官司|纠纷|官非/.test(text)) return "lawsuit";
-    if (/考|升学|论文|录取/.test(text)) return "exam";
+    if (/考|升学|论文|录取|考研/.test(text)) return "exam";
     if (/职|工作|升迁|offer|创业|功名/.test(text)) return "career";
     return "decision";
   }
@@ -833,12 +887,23 @@
     if (!text) {
       return { status: "empty" };
     }
+    const openKaoyan = /考研.*(专业|方向)|考什么专业|哪个专业|考研考什/;
     const openCity =
       /哪[一二两三]?[个座]?城市|哪座城|哪个地方|去哪[儿里]?发展|去哪个?城市|去那个城市|何处(安家|发展|落脚)|迁去哪|该去哪/;
     const openCareer = /哪[个条]?(行业|工作|职业|赛道)|做什么(工作|好)|选什么专业/;
     const twoChoice = /还是|或者|vs\.?|VS|二选一/;
     const pair = text.split(/还是|或者|vs\.?|VS/).map((s) => s.replace(/[？?！!。，,\s]/g, "").trim());
     const namedPair = pair.length === 2 && pair[0].length >= 2 && pair[1].length >= 2;
+
+    if (openKaoyan.test(text) && !namedPair) {
+      return {
+        status: "too_wide",
+        topic: "kaoyan",
+        eventId: "exam",
+        title: "一卦点不尽天下专业",
+        body: "「考研考哪个专业」须先缩圈。请到复杂问事用「考研择专」：按门类筛选，或写下 2–6 个具体专业，再逐个起卦。"
+      };
+    }
 
     if (openCity.test(text) && !namedPair) {
       return {
@@ -916,6 +981,7 @@
         <div class="example-chips">
           <button type="button" data-coach="example" data-q="迁往杭州发展事业是否有利？">迁往一座城</button>
           <button type="button" data-coach="example" data-q="此时事业，去杭州还是深圳更有利？">两座城二选一</button>
+          <button type="button" data-coach="complex-kaoyan">考研考哪个专业</button>
           <button type="button" data-coach="complex">尚未缩圈 · 迁居择城</button>
         </div>
       </div>`;
@@ -955,7 +1021,18 @@
       host.innerHTML = renderIdleCoach();
     } else if (info.status === "too_wide") {
       if (info.topic === "city") host.innerHTML = renderWideCityCoach();
-      else {
+      else if (info.topic === "kaoyan") {
+        host.innerHTML = `
+          <div class="coach-card warn" id="tarot-coach-card">
+            <p class="coach-kicker">立问未成</p>
+            <h3>一铺点不尽天下专业</h3>
+            <p>考研选专业请用中式「复杂问事 · 考研择专」：先定门类或写下 2–6 个具体专业，再逐个起卦。塔罗若只问两专业，可改成「考水利还是环境更有利」。 </p>
+            <div class="example-chips">
+              <button type="button" data-coach="complex-kaoyan">去考研择专</button>
+              <button type="button" data-coach="example" data-q="考研，水利工程还是环境科学与工程更有利？">改成两专业二选一</button>
+            </div>
+          </div>`;
+      } else {
         host.innerHTML = `
           <div class="coach-card warn" id="tarot-coach-card">
             <p class="coach-kicker">立问未成</p>
@@ -1440,6 +1517,9 @@
       } else if (act === "complex-career") {
         flashOracle("转至复杂问事 · 职业赛道。");
         openComplexScenario("career_path");
+      } else if (act === "complex-kaoyan") {
+        flashOracle("转至复杂问事 · 考研择专。");
+        openComplexScenario("kaoyan");
       }
     });
   }
