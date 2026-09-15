@@ -1254,6 +1254,43 @@ html.embed .footer { display: none; }
   background: linear-gradient(180deg, #f3e6c4, #d4b56a);
   border-color: var(--gold);
 }
+.ky-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.ky-groups button {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink-dim);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-family: inherit;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.ky-groups button.selected {
+  color: var(--accent);
+  border-color: var(--gold);
+  background: rgba(201, 168, 108, 0.16);
+}
+.ky-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.ky-actions button {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
 .ky-cascade {
   display: grid;
   grid-template-columns: minmax(120px, 0.9fr) minmax(140px, 1.1fr) minmax(180px, 1.4fr);

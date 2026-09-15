@@ -621,6 +621,7 @@
   const kyState = {
     degree: "xueshuo",
     field: "工学",
+    group: "xinxi",
     first: "计算机科学与技术",
     basket: []
   };
@@ -639,6 +640,8 @@
     const host = $("#cx-kaoyan-picker");
     if (!Cat || !host) return;
     const degBox = $("#ky-degree");
+    const groupBox = $("#ky-groups");
+    const actBox = $("#ky-actions");
     const fieldBox = $("#ky-fields");
     const firstBox = $("#ky-first");
     const secondBox = $("#ky-second");
@@ -658,15 +661,40 @@
       )
       .join("");
 
-    const firsts = Cat.firstOf(kyState.degree, kyState.field);
+    const groups = Cat.groupsOf(kyState.degree, kyState.field) || [];
+    if (groupBox) {
+      if (!groups.length) {
+        kyState.group = "all";
+        groupBox.innerHTML = "";
+      } else {
+        const ids = ["all"].concat(groups.map((g) => g.id));
+        if (!ids.includes(kyState.group)) kyState.group = groups[0] ? groups[0].id : "all";
+        groupBox.innerHTML =
+          `<button type="button" class="${kyState.group === "all" ? "selected" : ""}" data-group="all">全部一级</button>` +
+          groups
+            .map(
+              (g) =>
+                `<button type="button" class="${g.id === kyState.group ? "selected" : ""}" data-group="${g.id}">${g.name}</button>`
+            )
+            .join("");
+      }
+    }
+
+    if (actBox) {
+      actBox.innerHTML = `
+        <button type="button" data-ky-act="group">纳入当前大组一级（至多6）</button>
+        <button type="button" data-ky-act="seconds">纳入当前一级全部分支（至多6）</button>`;
+    }
+
+    const firsts = Cat.firstOf(kyState.degree, kyState.field, kyState.group);
     if (!firsts.some((x) => x.name === kyState.first)) {
       kyState.first = firsts[0] ? firsts[0].name : "";
     }
     firstBox.innerHTML = firsts
-      .map(
-        (x) =>
-          `<button type="button" class="${x.name === kyState.first ? "selected" : ""}" data-first="${x.name}">${x.name}<br><code>${x.code}</code></button>`
-      )
+      .map((x) => {
+        const code = Cat.firstCode ? Cat.firstCode(x) : x.code;
+        return `<button type="button" class="${x.name === kyState.first ? "selected" : ""}" data-first="${x.name}">${x.name}<br><code>${code}</code></button>`;
+      })
       .join("");
 
     const disc = firsts.find((x) => x.name === kyState.first) || firsts[0];
@@ -697,40 +725,109 @@
     box.innerHTML = kyState.basket
       .map(
         (b, i) =>
-          `<span class="ky-chip">${b.name} <code>${b.code}</code><button type="button" data-rm="${i}" aria-label="移除">×</button></span>`
+          `<span class="ky-chip">${majorBareName(b) || b.name} <code>${b.code || ""}</code><button type="button" data-rm="${i}" aria-label="移除">×</button></span>`
       )
       .join("");
+  }
+
+  function kyPushOption(raw) {
+    const Cat = kyCatalog();
+    const opt = Cat.toOption(raw);
+    if (!opt.code && !opt.name) return false;
+    if (kyState.basket.some((b) => b.code === opt.code || (!opt.code && b.name === opt.name))) return true;
+    if (kyState.basket.length >= 6) {
+      flashOracle("一次最多比较 6 个专业，以合「再三渎则不告」。", "warn");
+      return false;
+    }
+    kyState.basket.push(opt);
+    return true;
   }
 
   function kyToggleSecond(name, code, checked) {
     const Cat = kyCatalog();
     const deg = kyDegreeMeta();
-    const firsts = Cat.firstOf(kyState.degree, kyState.field);
+    const firsts = Cat.firstOf(kyState.degree, kyState.field, kyState.group);
     const disc = firsts.find((x) => x.name === kyState.first) || firsts[0];
     const qi = Cat.qiFor(kyState.degree, kyState.field, disc);
     const idx = kyState.basket.findIndex((b) => b.code === code);
     if (checked) {
-      if (idx >= 0) return;
-      if (kyState.basket.length >= 6) {
-        flashOracle("一次最多比较 6 个细分专业。", "warn");
-        return false;
-      }
-      kyState.basket.push(
-        Cat.toOption({
-          name,
-          code,
-          field: kyState.field,
-          first: kyState.first,
-          degreeName: deg ? deg.name : "",
-          dir: qi.dir,
-          wx: qi.wx
-        })
-      );
-    } else if (idx >= 0) {
-      kyState.basket.splice(idx, 1);
+      if (idx >= 0) return true;
+      const ok = kyPushOption({
+        name,
+        code,
+        field: kyState.field,
+        first: kyState.first,
+        degreeName: deg ? deg.name : "",
+        degreeId: kyState.degree,
+        dir: qi.dir,
+        wx: qi.wx,
+        group: (Cat.groupsOf(kyState.degree, kyState.field).find((g) => g.id === kyState.group) || {}).name || "",
+        kind: "second"
+      });
+      renderKyBasket();
+      return ok;
     }
+    if (idx >= 0) kyState.basket.splice(idx, 1);
     renderKyBasket();
     return true;
+  }
+
+  function kyAddGroupFirsts() {
+    if (!kyState.group || kyState.group === "all") {
+      flashOracle("请先点选一个工科或理科大专业组。", "warn");
+      return;
+    }
+    const Cat = kyCatalog();
+    const deg = kyDegreeMeta();
+    const opts = Cat.collectGroupOptions(
+      kyState.degree,
+      kyState.field,
+      kyState.group === "all" ? "" : kyState.group,
+      deg ? deg.name : ""
+    );
+    if (!opts.length) {
+      flashOracle("当前大组没有可纳入的一级学科。", "warn");
+      return;
+    }
+    let added = 0;
+    opts.forEach((o) => {
+      const before = kyState.basket.length;
+      if (kyPushOption(o) && kyState.basket.length > before) added += 1;
+    });
+    renderKyPicker();
+    flashOracle(added ? "已纳入 " + added + " 个大组一级，可再勾细分替换。" : "大组一级已在篮中，或已满 6 个。");
+  }
+
+  function kyAddCurrentSeconds() {
+    const Cat = kyCatalog();
+    const deg = kyDegreeMeta();
+    const firsts = Cat.firstOf(kyState.degree, kyState.field, kyState.group);
+    const disc = firsts.find((x) => x.name === kyState.first) || firsts[0];
+    const kids = (disc && disc.kids) || [];
+    if (!kids.length) {
+      flashOracle("当前一级没有细分专业。", "warn");
+      return;
+    }
+    const qi = Cat.qiFor(kyState.degree, kyState.field, disc);
+    let added = 0;
+    kids.forEach((s) => {
+      const before = kyState.basket.length;
+      const ok = kyPushOption({
+        name: s.name,
+        code: s.code,
+        field: kyState.field,
+        first: disc.name,
+        degreeName: deg ? deg.name : "",
+        degreeId: kyState.degree,
+        dir: qi.dir,
+        wx: qi.wx,
+        group: (Cat.groupsOf(kyState.degree, kyState.field).find((g) => g.id === kyState.group) || {}).name || "",
+        kind: "second"
+      });
+      if (ok && kyState.basket.length > before) added += 1;
+    });
+    renderKyPicker();
+    flashOracle(added ? "已纳入 " + added + " 个细分专业。" : "细分已在篮中，或已满 6 个。");
   }
 
   function initKyPicker() {
@@ -742,13 +839,35 @@
       if (degBtn) {
         kyState.degree = degBtn.dataset.degree;
         kyState.field = kyCatalog().fieldsOf(kyState.degree)[0];
+        kyState.group = "all";
         kyState.first = "";
         renderKyPicker();
+        return;
+      }
+      const groupBtn = e.target.closest("[data-group]");
+      if (groupBtn) {
+        kyState.group = groupBtn.dataset.group;
+        const gs = kyCatalog().groupsOf(kyState.degree, kyState.field) || [];
+        const g = gs.find((x) => x.id === kyState.group);
+        if (g && g.firsts && g.firsts[0]) {
+          const fields = kyCatalog().fieldsOf(kyState.degree);
+          if (fields.includes(g.firsts[0])) kyState.field = g.firsts[0];
+        }
+        kyState.first = "";
+        renderKyPicker();
+        return;
+      }
+      const act = e.target.closest("[data-ky-act]");
+      if (act) {
+        if (act.dataset.kyAct === "group") kyAddGroupFirsts();
+        if (act.dataset.kyAct === "seconds") kyAddCurrentSeconds();
         return;
       }
       const fieldBtn = e.target.closest("[data-field]");
       if (fieldBtn) {
         kyState.field = fieldBtn.dataset.field;
+        const gs = kyCatalog().groupsOf(kyState.degree, kyState.field) || [];
+        kyState.group = gs[0] ? gs[0].id : "all";
         kyState.first = "";
         renderKyPicker();
         return;
@@ -798,7 +917,7 @@
 
     if (isKaoyan) {
       if (legend) legend.textContent = "考研缩圈（标签 / 上限）";
-      if (hint) hint.textContent = "下方按研招网层级勾选二级学科。已勾选则只占勾选项；也可再填名单。";
+      if (hint) hint.textContent = "工科、理科先选大专业组。可纳入整组一级，或勾选二级。已勾选则以勾选为准。";
       if (customLegend) customLegend.textContent = "或手写专业（可选，2–6 个）";
       if (customHint) customHint.textContent = "未勾选目录时，可用手写名单。勾选了目录则以勾选为准。";
       if (goal) goal.placeholder = "如：就业 / 读博 / 考公";
@@ -942,8 +1061,19 @@
           return;
         }
         if (nPick === 0 && nHand === 0) {
-          flashOracle("请先在目录勾选 2–6 个二级学科，或手写专业名单。", "warn");
-          return;
+          const Cat = kyCatalog();
+          const deg = kyDegreeMeta();
+          if (Cat && Cat.collectGroupOptions && kyState.group && kyState.group !== "all") {
+            const auto = Cat.collectGroupOptions(kyState.degree, kyState.field, kyState.group, deg ? deg.name : "");
+            if (auto.length >= 2) {
+              form.pickedMajors = auto;
+              flashOracle("未勾选细分，已按当前大专业组纳入一级学科比较。");
+            }
+          }
+          if (form.pickedMajors.length < 2 && nHand === 0) {
+            flashOracle("请勾选 2–6 个二级，或点「纳入当前大组一级」，或手写名单。", "warn");
+            return;
+          }
         }
       }
 
@@ -952,8 +1082,12 @@
           const out = Cx.compareComplex(selectedScenario, form);
           out.form = form;
           out.followReads = [];
-          out.fuKind = "gongming";
+          out.fuKind = "fenxi";
           out.fuMajorKey = out.top && out.top.option ? optionKey(out.top.option) : "";
+          out.followPool =
+            window.KaoyanCatalog && window.KaoyanCatalog.expandFollowPool
+              ? window.KaoyanCatalog.expandFollowPool((out.ranked || []).map((r) => r.option))
+              : (out.ranked || []).map((r) => r.option);
           lastComplexOut = out;
           complexFollowSession = window.YiSession
             ? window.YiSession.create("complex")
@@ -1021,6 +1155,11 @@
 
   const KY_FOLLOW_KINDS = [
     {
+      id: "fenxi",
+      label: "细分方向",
+      fill: (opt) => `考研「${majorCodeName(opt)}」这一细分方向就此时是否有利`
+    },
+    {
       id: "gongming",
       label: "本专业功名",
       fill: (opt) => `考研「${majorCodeName(opt)}」就此时功名录取而言是否有利`
@@ -1047,14 +1186,28 @@
     }
   ];
 
+  function followPoolOf(out) {
+    if (out.followPool && out.followPool.length) return out.followPool;
+    if (window.KaoyanCatalog && typeof window.KaoyanCatalog.expandFollowPool === "function") {
+      out.followPool = window.KaoyanCatalog.expandFollowPool((out.ranked || []).map((r) => r.option));
+      return out.followPool;
+    }
+    return (out.ranked || []).map((r) => r.option);
+  }
+
   function findRankedOption(out, key) {
     const rows = (out && out.ranked) || [];
     return (rows.find((r) => optionKey(r.option) === key) || rows[0] || {}).option;
   }
 
+  function resolveFollowOption(out, key) {
+    const pool = followPoolOf(out);
+    return pool.find((o) => optionKey(o) === key) || findRankedOption(out, key);
+  }
+
   function fillKyFollowQuestion(out) {
-    const kind = KY_FOLLOW_KINDS.find((k) => k.id === (out.fuKind || "gongming")) || KY_FOLLOW_KINDS[0];
-    const opt = findRankedOption(out, out.fuMajorKey);
+    const kind = KY_FOLLOW_KINDS.find((k) => k.id === (out.fuKind || "fenxi")) || KY_FOLLOW_KINDS[0];
+    const opt = resolveFollowOption(out, out.fuMajorKey);
     return kind.fill(opt);
   }
 
@@ -1120,22 +1273,30 @@
     }
     const nextLabel = session.count === 1 ? "再筮" : "三筮（末）";
     const selectedKey = out.fuMajorKey || optionKey((out.top && out.top.option) || {});
-    const options = (out.ranked || [])
-      .map(
-        (row) =>
-          `<option value="${optionKey(row.option)}" ${
-            optionKey(row.option) === selectedKey ? "selected" : ""
-          }>${majorLabel(row.option)}</option>`
-      )
-      .join("");
+    const rankedKeys = new Set((out.ranked || []).map((r) => optionKey(r.option)));
+    const pool = followPoolOf(out);
+    const optHtml = (list) =>
+      list
+        .map(
+          (opt) =>
+            `<option value="${optionKey(opt)}" ${
+              optionKey(opt) === selectedKey ? "selected" : ""
+            }>${majorLabel(opt)}</option>`
+        )
+        .join("");
+    const compared = pool.filter((o) => rankedKeys.has(optionKey(o)));
+    const extra = pool.filter((o) => !rankedKeys.has(optionKey(o)));
+    const options =
+      `<optgroup label="已比较">${optHtml(compared.length ? compared : (out.ranked || []).map((r) => r.option))}</optgroup>` +
+      (extra.length ? `<optgroup label="同级可追问的细分">${optHtml(extra)}</optgroup>` : "");
     const kinds = KY_FOLLOW_KINDS.map(
       (k) =>
-        `<button type="button" class="chip-btn ${(out.fuKind || "gongming") === k.id ? "selected" : ""}" data-fu-kind="${k.id}">${k.label}</button>`
+        `<button type="button" class="chip-btn ${(out.fuKind || "fenxi") === k.id ? "selected" : ""}" data-fu-kind="${k.id}">${k.label}</button>`
     ).join("");
     return `
       <div class="result-card followup-card" id="complex-followup">
         <h3>就某一细分专业追问 · ${nextLabel} <span class="session-label">事不过三</span></h3>
-        <p>比较已立。若象未明，可就<strong>同一批专业中的一个</strong>再问一层（某校、跨考、就业、导师）。再筮只为澄清，不可推翻初象。</p>
+        <p>比较已立。若象未明，可就<strong>已比较之案</strong>或<strong>同一级下尚未占过的细分</strong>再问一层。再筮只澄清初象，不可推翻名次；全部分支不必一次占尽。</p>
         ${renderAskDots(session)}
         ${hist}
         <label class="q-label">选定细分专业
@@ -1207,7 +1368,7 @@
       goBtn.onclick = () => {
         const q = ((qInput && qInput.value) || "").trim();
         const same = !!(box.querySelector(".fu-same") && box.querySelector(".fu-same").checked);
-        const opt = findRankedOption(out, (majorSel && majorSel.value) || out.fuMajorKey);
+        const opt = resolveFollowOption(out, (majorSel && majorSel.value) || out.fuMajorKey);
         runKaoyanFollowUp(q, opt, same);
       };
     }
@@ -1243,7 +1404,10 @@
       hour: form.hour,
       personName: form.personName,
       personAge: form.personAge,
-      otherName: majorBareName(option),
+      otherName:
+        window.KaoyanCatalog && window.KaoyanCatalog.optionSeed
+          ? window.KaoyanCatalog.optionSeed(option)
+          : majorBareName(option),
       question,
       direction: option.dir || "",
       place: majorBareName(option),
@@ -1276,7 +1440,9 @@
             <div class="rank-title">第 ${row.rank} · ${majorLabel(row.option)}
               <span class="tag">${row.verdict}</span>
             </div>
-            <div class="rank-score">综合 ${row.finalScore}（卦 ${row.guaScore}）</div>
+            <div class="rank-score">${
+              row.guaOnly ? "卦象 " + row.guaScore : "综合 " + row.finalScore + "（卦 " + row.guaScore + "）"
+            }</div>
           </div>
           <div class="rank-meta">
             ${fieldBits.length ? fieldBits.join(" · ") + " · " : ""}
@@ -1368,7 +1534,7 @@
         topic: "kaoyan",
         eventId: "exam",
         title: "一卦点不尽天下专业",
-        body: "「考研考哪个专业」须先缩圈。请到复杂问事用「考研择专」：按学位类型→门类→一级→二级勾选 2–6 个细分专业，再逐个起卦。"
+        body: "「考研考哪个专业」须先缩圈。请到复杂问事用「考研择专」：工科、理科先入大专业组，再勾 2–6 个一级或二级，逐个起卦；比较后可追问同级细分。"
       };
     }
 

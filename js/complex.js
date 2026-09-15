@@ -149,14 +149,15 @@
       id: "kaoyan",
       name: "考研择专",
       icon: "✎",
-      desc: "问「考哪个具体专业」：按研招网层级勾到二级学科，再对每一专业单独起卦。",
+      desc: "问「考哪个具体专业」：工科/理科先入大专业组，再勾一级或二级，一事一占；事后可就同级全部分支追问。",
       eventId: "exam",
       optionSource: "kaoyan",
       questionTpl: (opt, goal) =>
-        `我考研攻读「${opt.name}」${opt.code ? "（" + opt.code + "）" : ""}${goal ? "，目标侧重" + goal : ""}，就此时功名与出路而言是否有利？`,
+        `我考研攻读「${opt.name}」${opt.code ? "（" + opt.code + "）" : ""}${opt.first && opt.first !== opt.name ? "，属" + opt.first : ""}${goal ? "，目标侧重" + goal : ""}，就此时功名与出路而言是否有利？`,
       tips: [
-        "依研招网层级选到二级学科（含代码），一专业一占。",
-        "勾选 2–6 个细分专业再起卦；比较后可就其一追问，事不过三。",
+        "工科、理科先按大专业组缩圈，再落到一级或二级（含代码），一案一占。",
+        "一次比较 2–6 案。比较后，已选一级下的全部分支都可追问，事不过三。",
+        "既已立候选，名次以卦象体用与玩辞为准；八字只助缩圈，不翻盘。",
         "录取分数、导师、院校为人谋，象数只助决疑。"
       ]
     },
@@ -214,6 +215,10 @@
       case "schools":
         return SCHOOLS;
       case "kaoyan":
+        if (window.KaoyanCatalog && typeof window.KaoyanCatalog.stemLibrary === "function") {
+          const stem = window.KaoyanCatalog.stemLibrary("xueshuo");
+          if (stem && stem.length >= 2) return stem;
+        }
         return KAOYAN;
       case "invest":
         return INVEST;
@@ -309,20 +314,24 @@
       pool = getLibrary(sc.optionSource).slice(0, 3);
     }
 
-    return { pool, chart, scenario: sc };
+    return { pool, chart, scenario: sc, guaOnly: userPickedKaoyan };
   }
 
   /**
    * 对每一候选一事一占（梅花：人名成数 + 选项成数 + 时）
    */
-  function castOneOption(scenario, option, ctx, chart) {
+  function castOneOption(scenario, option, ctx, chart, guaOnly) {
     const Y = Yi();
     const question = scenario.questionTpl(option, ctx.goal);
+    const seed =
+      window.KaoyanCatalog && window.KaoyanCatalog.optionSeed
+        ? window.KaoyanCatalog.optionSeed(option)
+        : String((option.code || "") + (option.name || "")).replace(/\s+/g, "") || option.name;
     const personNum = Y.stringToNumber(ctx.personName || "某人");
-    const optNum = Y.stringToNumber(option.name);
+    const optNum = Y.stringToNumber(seed);
     const age = parseInt(ctx.personAge, 10) || 0;
 
-    // 人物+对象梅花：上卦取人，下卦取人+对象+时
+    // 人物梅花：己为上卦，专业成数（代码+名称）合时为下卦、动爻。一专业一数，避免同名碰撞。
     const raw = {
       year: ctx.year,
       month: ctx.month,
@@ -330,16 +339,14 @@
       hour: ctx.hour,
       personName: ctx.personName || "某人",
       personAge: age,
-      otherName: option.name,
+      otherName: seed,
       question,
       direction: option.dirAlias || option.dir || ctx.direction || "",
       place: option.name
     };
 
-    // 优先人物梅花；有方位则再参考方位信息入上下文
     const result = Y.divinate("meihua_person", scenario.eventId, raw);
 
-    // 附加缩圈分
     let preScore = 0;
     if (chart) {
       preScore += BaZi().scoreOptionWuxing(option.wx, chart.gods);
@@ -348,9 +355,9 @@
     }
 
     const guaScore = result.reading.score;
-    // 综合：易卦为主（70%），命理缩圈为辅（30% 映射到 0-100）
     const preNorm = Math.max(0, Math.min(100, 50 + preScore * 2));
-    const finalScore = Math.round(guaScore * 0.7 + preNorm * 0.3);
+    // 已立具体专业：卦象正断。库内缩圈比较：易卦七、命理三。
+    const finalScore = guaOnly ? guaScore : Math.round(guaScore * 0.7 + preNorm * 0.3);
 
     return {
       option,
@@ -359,13 +366,14 @@
       preScore,
       guaScore,
       finalScore,
+      guaOnly: !!guaOnly,
       personNum,
       optNum
     };
   }
 
   function compareComplex(scenarioId, form) {
-    const { pool, chart, scenario } = shortlist(scenarioId, form);
+    const { pool, chart, scenario, guaOnly } = shortlist(scenarioId, form);
     if (pool.length > 6) {
       throw new Error("一次最多比较 6 个候选，以合「再三渎则不告」");
     }
@@ -381,8 +389,12 @@
       direction: form.direction || ""
     };
 
-    const rows = pool.map((opt) => castOneOption(scenario, opt, ctx, chart));
-    rows.sort((a, b) => b.finalScore - a.finalScore);
+    const rows = pool.map((opt) => castOneOption(scenario, opt, ctx, chart, guaOnly));
+    rows.sort((a, b) => {
+      if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
+      if (b.guaScore !== a.guaScore) return b.guaScore - a.guaScore;
+      return String((a.option && a.option.code) || "").localeCompare(String((b.option && b.option.code) || ""));
+    });
 
     // 名次与间距
     const ranked = rows.map((r, i) => ({
@@ -396,10 +408,12 @@
       scenario,
       chart,
       castTime: `${ctx.year}-${ctx.month}-${ctx.day} ${ctx.hour}时`,
-      principle:
-        "复杂事拆为「缩圈 + 一事一占」。八字/方位仅辅助筛选候选；每一候选单独起卦，以本卦、之卦、动爻玩辞与体用生克正断。",
+      principle: guaOnly
+        ? "既已立具体专业，八字不再加权翻盘。人物梅花：己为上、专业成数合时为下；以本卦、之卦、动爻玩辞与体用生克正断。"
+        : "复杂事拆为「缩圈 + 一事一占」。八字/方位仅辅助筛选候选；每一候选单独起卦，以本卦、之卦、动爻玩辞与体用生克正断。",
       ranked,
       top: ranked[0] || null,
+      guaOnly: !!guaOnly,
       caution: "象数助缘，不替代签证、合同、健康与现金流等人事决策。"
     };
   }
