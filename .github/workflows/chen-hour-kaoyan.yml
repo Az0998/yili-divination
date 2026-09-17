@@ -1,0 +1,61 @@
+# GitHub 云端定时，不经过 Cursor Automations。
+# 07:30 中国 = 23:30 UTC 9/17；08:20 中国 = 00:20 UTC 9/18。
+name: Chen-hour kaoyan fallback
+
+on:
+  schedule:
+    - cron: "30 23 17 9 *"
+    - cron: "20 0 18 9 *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: ping 只测引擎；kaoyan 正占（非 9月18日会被时门拦住）
+        type: choice
+        default: ping
+        options:
+          - ping
+          - kaoyan
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'ping'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Engine self-test
+        run: |
+          node tools/verify-kaoyan.js | tee ping-kaoyan.txt
+          node tools/verify-cloud-ready.js | tee ping-cloud-ready.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-ping-20260917
+          path: ping-*.txt
+
+  kaoyan:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'kaoyan')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install python-docx
+        run: pip install python-docx
+      - name: Chen-hour Liu Yao
+        run: node tools/chen-hour-kaoyan-run.js
+      - name: Word
+        run: python tools/write-kaoyan-docx.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZhangSenjie-20260918-ChenHour-Kaoyan
+          path: out/ZhangSenjie-20260918-ChenHour-Kaoyan.*
+          if-no-files-found: error

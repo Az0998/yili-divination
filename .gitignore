@@ -6,3 +6,4 @@ Thumbs.db
 .reasonix/
 .codegraph/
 *.log
+out/
