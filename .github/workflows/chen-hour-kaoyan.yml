@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   ping:
@@ -48,13 +49,42 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Skip backup if 07:30 already succeeded
+        if: github.event.schedule == '20 0 18 9 *'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, sys
+          raw = subprocess.check_output(
+              ["gh", "run", "list", "--workflow", "Chen-hour kaoyan fallback", "--event", "schedule", "--json", "databaseId,conclusion,status,createdAt", "--limit", "10"],
+              text=True,
+          )
+          runs = json.loads(raw)
+          current = os.environ.get("GITHUB_RUN_ID")
+          others = [r for r in runs if str(r.get("databaseId")) != str(current)]
+          ok = [
+              r for r in others
+              if r.get("conclusion") == "success" or r.get("status") in ("in_progress", "queued")
+          ]
+          if ok:
+              print("morning run already exists; skip 08:20 recast", ok[0])
+              with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+                  f.write("SKIP_BACKUP=1\n")
+          else:
+              print("no successful morning run; continue backup cast")
+          PY
       - name: Install python-docx
+        if: env.SKIP_BACKUP != '1'
         run: pip install python-docx
       - name: Chen-hour Liu Yao
+        if: env.SKIP_BACKUP != '1'
         run: node tools/chen-hour-kaoyan-run.js
       - name: Word
+        if: env.SKIP_BACKUP != '1'
         run: python tools/write-kaoyan-docx.py
       - uses: actions/upload-artifact@v4
+        if: env.SKIP_BACKUP != '1'
         with:
           name: ZhangSenjie-20260918-ChenHour-Kaoyan
           path: out/ZhangSenjie-20260918-ChenHour-Kaoyan.*

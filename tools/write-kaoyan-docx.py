@@ -5,7 +5,7 @@ import sys
 
 try:
     from docx import Document
-    except ImportError:
+except ImportError:
     sys.stderr.write("python-docx missing\n")
     sys.exit(1)
 
