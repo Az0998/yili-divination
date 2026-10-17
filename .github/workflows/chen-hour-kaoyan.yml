@@ -1,11 +1,7 @@
-# GitHub 云端定时，不经过 Cursor Automations。
-# 07:30 中国 = 23:30 UTC 9/17；08:20 中国 = 00:20 UTC 9/18。
+# Manual dispatch only. The September Chen-hour cron was removed.
 name: Chen-hour kaoyan fallback
 
 on:
-  schedule:
-    - cron: "30 23 17 9 *"
-    - cron: "20 0 18 9 *"
   workflow_dispatch:
     inputs:
       mode:
